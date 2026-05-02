@@ -7,4 +7,14 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
   },
+  server: {
+    // In local dev, proxy /api calls to a local server
+    // On Vercel, /api routes are handled by serverless functions automatically
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      }
+    }
+  }
 })
