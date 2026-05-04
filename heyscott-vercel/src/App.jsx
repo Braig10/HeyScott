@@ -1799,7 +1799,7 @@ function saveManagerReport(r) { try { localStorage.setItem("heyscott_manager_rep
 async function callAPI(messages, system, opts={}) {
   const model      = opts.model      || "claude-haiku-4-5";
   const max_tokens = opts.max_tokens || 1000;
-  const temperature = opts.temperature ?? 1;
+  const temperature = opts.temperature ?? 0.7;
   const body = {model, max_tokens, messages, temperature};
   if(system) body.system = system;
 
@@ -3300,8 +3300,10 @@ function ConfidenceCheck({type, lessonTitle, aiScore, onComplete, onJournal}){
    ROLEPLAY VIEW — Brief → Split-panel call → Framework debrief
 ══════════════════════════════════════════════════════════════ */
 function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=null, onJournal=null}){
+  const isMobile = useWindowWidth() < 768;
   const [phase, setPhase] = useState("brief");
   const [showPostCheck, setShowPostCheck] = useState(false);
+  const [showBrief, setShowBrief] = useState(false);
   const [msgs, setMsgs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [turns, setTurns] = useState(0);
@@ -3486,7 +3488,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
         role: m.role==="user" ? "user" : "assistant",
         content: m.content
       }));
-      const resp = await callAPI(hist, scenario.system, {model:"claude-haiku-4-5", max_tokens:200});
+      const resp = await callAPI(hist, scenario.system, {model:"claude-haiku-4-5", max_tokens:300, temperature:1});
       // Always strip [Coach:...] from AI response — all feedback goes to post-call debrief only
       const clean = resp.replace(/\[Coach:\s*.+?\]/gs,"").trim();
       const withAI = [...newMsgs, {role:"ai", content:clean, time:ts()}];
@@ -3660,7 +3662,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
         )}
 
         {/* Candidate + Brief side by side */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:18}}>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:14,marginBottom:18}}>
           {/* Candidate profile */}
           <div style={{background:C.white,borderRadius:5,border:`1px solid ${C.border}`,padding:"16px 18px"}}>
             <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1.5,marginBottom:12}}>Who you're calling</div>
@@ -3734,10 +3736,16 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
         @keyframes pulse-ring { 0%{transform:scale(1);opacity:0.6} 100%{transform:scale(1.6);opacity:0} }
         @keyframes mic-active { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.5)} 50%{box-shadow:0 0 0 14px rgba(239,68,68,0)} }
       `}</style>
-      <div style={{display:"grid",gridTemplateColumns:"300px 1fr",minHeight:"calc(100vh - 60px)",fontFamily:"'Inter',sans-serif"}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"300px 1fr",minHeight:"calc(100vh - 60px)",fontFamily:"'Inter',sans-serif"}}>
 
         {/* ── LEFT PANEL: Brief + Objectives ── */}
-        <div style={{background:C.white,borderRight:`1px solid ${C.border}`,padding:"24px 20px",overflowY:"auto",display:"flex",flexDirection:"column",gap:16}}>
+        <div style={{background:C.white,borderRight:isMobile?"none":`1px solid ${C.border}`,borderBottom:isMobile?`1px solid ${C.border}`:"none",padding:isMobile?"8px 16px":"24px 20px",overflowY:"auto",display:"flex",flexDirection:"column",gap:isMobile?0:16}}>
+          {isMobile&&(
+            <button onClick={()=>setShowBrief(v=>!v)} style={{background:"none",border:"none",padding:"6px 0",cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700,color:C.navy,textAlign:"left"}}>
+              <span>{showBrief?"▲":"▼"}</span>{showBrief?`Hide brief — ${cand?.name}`:`Show brief — ${cand?.name}`}
+            </button>
+          )}
+          <div style={{display:isMobile&&!showBrief?"none":"flex",flexDirection:"column",gap:16,paddingTop:isMobile?8:0}}>
 
           {/* Candidate */}
           <div>
@@ -3801,6 +3809,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
               </div>
             )}
           </div>
+          </div>{/* end collapsible content wrapper */}
         </div>
 
         {/* ── RIGHT PANEL: Phone call ── */}
@@ -4041,7 +4050,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
                 return (
                   <div style={{marginBottom:14}}>
                     {/* Row 1: Talk ratio + Tone + Pause */}
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:10,marginBottom:10}}>
                       {tr && (
                         <div style={{background:C.white,borderRadius:14,padding:"14px 16px",border:`1px solid ${C.border}`}}>
                           <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🗣 Talk ratio</div>
@@ -4073,7 +4082,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
                       )}
                     </div>
                     {/* Row 2: Call structure + Questioning depth */}
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
                       {cs && (
                         <div style={{background:C.white,borderRadius:14,padding:"14px 16px",border:`1px solid ${C.border}`}}>
                           <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📋 Call structure</div>
@@ -4139,7 +4148,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
                 <div style={{background:"#FFF7ED",borderRadius:5,padding:"18px 22px",border:"1px solid #FED7AA",marginBottom:12}}>
                   <div style={{fontSize:10,fontWeight:800,color:"#C2410C",textTransform:"uppercase",letterSpacing:1.5,marginBottom:12}}>⚡ Biggest missed opportunity</div>
                   {/* The actual lines */}
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                  <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10,marginBottom:12}}>
                     {(result.missedMoment.recruiterLine||result.missedMoment.candidateLine) ? (
                       <>
                         {result.missedMoment.candidateLine && (
@@ -4254,7 +4263,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
               )}
 
               {/* ── What worked / To improve ── */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+              <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12,marginBottom:14}}>
                 <div style={{background:C.white,borderRadius:14,border:`1px solid ${C.border}`,padding:18}}>
                   <div style={{fontSize:11,fontWeight:700,color:C.green,marginBottom:12}}>✓ What worked</div>
                   {result.strengths?.map((s,i)=>(
@@ -4306,7 +4315,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
                   <div style={{fontSize:10,fontWeight:800,color:C.purple,textTransform:"uppercase",letterSpacing:1.5,marginBottom:14}}>⚡ Opportunities you captured — and how to take them to great</div>
                   {result.capturedOpportunities.map((co,i)=>(
                     <div key={i} style={{marginBottom:i<result.capturedOpportunities.length-1?18:0,paddingBottom:i<result.capturedOpportunities.length-1?18:0,borderBottom:i<result.capturedOpportunities.length-1?`1px solid ${C.bg}`:"none"}}>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:8,marginBottom:8}}>
                         <div style={{background:"#FFF7ED",borderRadius:5,padding:"8px 12px",border:"1px solid #FED7AA"}}>
                           <div style={{fontSize:9,fontWeight:700,color:"#C2410C",textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>They said</div>
                           <p style={{fontSize:12,color:"#7C2D12",fontStyle:"italic",lineHeight:1.5,margin:0}}>"{co.candidateSignal}"</p>
@@ -4434,7 +4443,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
                     return(
                       <div style={{background:C.navy,borderRadius:14,padding:"16px 20px"}}>
                         <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Methodology pattern</div>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
+                        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:10,marginBottom:12}}>
                           {[{l:"Average across all",v:avg},{l:"Strongest fit",v:`${highest.name.split(" ")[0]} (${highest.score})`},{l:"Biggest gap",v:`${lowest.name.split(" ")[0]} (${lowest.score})`}].map((s,i)=>(
                             <div key={i} style={{background:"rgba(255,255,255,0.07)",borderRadius:5,padding:"10px 12px",textAlign:"center"}}>
                               <div style={{fontSize:i===0?22:14,fontWeight:800,color:"#fff",lineHeight:1}}>{s.v}</div>
@@ -4650,7 +4659,7 @@ SCENARIO: ${brief}
 DIFFICULTY: ${scenario.difficulty||"beginner"}
 
 TRANSCRIPT:
-${transcript.slice(0, 2000)}
+${transcript}
 
 Analyse using SPIN Selling (situation/problem/implication/need-payoff questions), Challenger Sale (reframing), active listening signals, and objection handling frameworks. Score behaviours not intentions — what actually happened in the transcript.
 
@@ -4676,7 +4685,7 @@ Return ONLY this JSON (no markdown, no extra text):
 Fill every field with real observations from the transcript above.`;
 
   try {
-    const fb = await callAPI([{role:"user", content:prompt}], null, {model:"claude-haiku-4-5", max_tokens:1000});
+    const fb = await callAPI([{role:"user", content:prompt}], null, {model:"claude-sonnet-4-6", max_tokens:1200, temperature:0});
     const parsed = parseJSON(fb);
     setResult(parsed);
     const rpEntry = {
@@ -5012,6 +5021,7 @@ function ScottOnboarding({onComplete, existingProfile=null}){
    ANALYSIS
 ══════════════════════════════════════════════════════════════ */
 function Analysis({go, profile:appProfile=null, userId=null}){
+  const isMobile = useWindowWidth() < 768;
   const effectiveProfile = appProfile || loadProfile();
   const [activeSection, setActiveSection] = useState("review"); // review | ask
 
@@ -5057,10 +5067,10 @@ function Analysis({go, profile:appProfile=null, userId=null}){
     setLoading(true); setResult(null); setAnalysisError(null);
     setShowTranscript(false);
 
-    // Truncate transcript to max 300 words
+    // Truncate transcript to max 1000 words, keeping start and end for context
     const words = transcript.trim().split(/\s+/);
-    const short = words.length > 300
-      ? words.slice(0,120).join(' ') + ' [...] ' + words.slice(-80).join(' ')
+    const short = words.length > 1000
+      ? words.slice(0, 800).join(' ') + ' [...] ' + words.slice(-200).join(' ')
       : transcript.trim();
 
     const recL  = (transcript.match(/^Recruiter:/gim)||[]).length;
@@ -5141,7 +5151,7 @@ Replace every placeholder with real observations from the transcript.`;
       const raw = await callAPI(
         [{role:'user', content: prompt}],
         null,
-        {model:'claude-haiku-4-5', max_tokens:1000, temperature:0}
+        {model:'claude-haiku-4-5', max_tokens:1200, temperature:0}
       );
 
       // Extract JSON from response
@@ -5204,17 +5214,24 @@ ${effectiveProfile ? `This recruiter: ${effectiveProfile.focus}, billing ${effec
 
 HOW YOU COACH:
 - SPIN Selling: you help them move from situation → problem → implication → need-payoff questions
-- Challenger approach: teach them to reframe the candidate's thinking, not just respond to it  
+- Challenger approach: teach them to reframe the candidate's thinking, not just respond to it
 - Emotional intelligence: acknowledge the candidate's state before trying to change it
 - When they share a specific line or situation, respond to THAT specifically — not generically
 - Always include one exact script: "Try this: [exact words]"
 - If they're stuck on mindset (fear of rejection, procrastination), address the feeling first then the tactic
 - Keep responses to 3-4 short paragraphs. They're between calls.
-- Never say "great question" or start with sycophancy. Just answer.`;
+- Never say "great question" or start with sycophancy. Just answer.
+
+RESPONSE STRUCTURE:
+- Write 3-4 focused paragraphs, each making one distinct point
+- First paragraph: acknowledge the exact situation or feeling they described — make them feel heard before fixing anything
+- Middle paragraphs: give the insight or reframe, then the tactic
+- Always end with a concrete script line formatted as: Try this: "[exact words to say]"
+- Be specific to what they just shared — never give advice that could apply to anyone`;
 
     try {
-      const messages = newHistory.map(m => ({role:m.role, content:m.content}));
-      const resp = await callAPI(messages, systemPrompt, {model:"claude-haiku-4-5", max_tokens:600});
+      const messages = newHistory.slice(-10).map(m => ({role:m.role, content:m.content}));
+      const resp = await callAPI(messages, systemPrompt, {model:"claude-sonnet-4-6", max_tokens:800, temperature:0.7});
       setChatHistory(prev => [...prev, {role:"assistant", content:resp}]);
     } catch(e){
       setChatHistory(prev => [...prev, {role:"assistant", content:`⚠ ${e.message || "Connection issue — try again in a moment."}`}]);
@@ -5236,7 +5253,7 @@ HOW YOU COACH:
 
   return(
     <Shell page="analysis" go={go} userRole="learner">
-      <div style={{maxWidth:820}}>
+      <div style={{maxWidth:820,padding:isMobile?"0 4px":0}}>
 
         {/* Page header */}
         <div style={{marginBottom:20}}>
@@ -5483,7 +5500,7 @@ HOW YOU COACH:
                   return(
                     <div style={{animation:"fadeUp 0.3s ease both"}}>
                       {/* Summary strip */}
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
+                      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:10,marginBottom:16}}>
                         {[{label:"Behaviours present",val:present,col:C.green,bg:C.greenBg},{label:"Partial",val:partial,col:"#92400E",bg:"#FEF3C7"},{label:"Not yet present",val:absent,col:C.red,bg:"#FEF2F2"}].map((s,i)=>(
                           <div key={i} style={{background:s.bg,borderRadius:5,padding:"12px 14px",textAlign:"center"}}>
                             <div style={{fontSize:26,fontWeight:900,color:s.col,lineHeight:1}}>{s.val}</div>
@@ -5524,7 +5541,7 @@ HOW YOU COACH:
                       })}
 
                       {/* Top win + miss */}
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:4}}>
+                      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12,marginTop:4}}>
                         {result.topWin&&(
                           <div style={{background:"#F0FDF4",borderRadius:14,border:"1px solid #BBF7D0",padding:"14px 16px"}}>
                             <div style={{fontSize:9,fontWeight:800,color:C.green,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>✓ Best moment</div>
@@ -5842,6 +5859,7 @@ function Progress({go}){
    ANALYTICS
 ══════════════════════════════════════════════════════════════ */
 function Analytics({go}){
+  const isMobile = useWindowWidth() < 768;
   const roleplays  = loadRoleplays();
   const reflections = loadReflections();
 
@@ -6682,7 +6700,8 @@ Regressing: ${analyticsTeam.filter(m=>m.status==="regressing").map(m=>`${m.name}
             </div>
 
             {/* Per-person rows */}
-            <div style={{background:C.white,borderRadius:14,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+            <div style={{background:C.white,borderRadius:14,border:`1px solid ${C.border}`,overflow:"hidden",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+              <div style={{minWidth:640}}>
               {/* Header */}
               <div style={{display:"grid",gridTemplateColumns:"200px 1fr 80px 90px 80px 100px",gap:0,padding:"10px 16px",background:C.bg,borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5}}>
                 <span>Consultant</span>
@@ -6758,6 +6777,7 @@ Regressing: ${analyticsTeam.filter(m=>m.status==="regressing").map(m=>`${m.name}
                     </div>
                   );
               })}
+              </div>{/* end minWidth wrapper */}
             </div>
 
             {/* Flag notes */}

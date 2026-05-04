@@ -1,9 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  AreaChart, Area, BarChart, Bar, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
-} from "recharts";
-
+import { useState, useRef, useEffect, useCallback, createContext, useContext } from "react";
 /* ── Design tokens ── */
 const C = {
   navy: "#140F2D", navyMid: "#1E1540", purple: "#4A3F8C",
@@ -14,6 +9,13 @@ const C = {
   amber: "#854D0E", amberBg: "#FEF9C3",
   red: "#991B1B", redBg: "#FEE2E2",
 };
+
+const AppCtx = createContext({userRole:"learner",profile:null});
+function useWindowWidth(){
+  const [w,setW]=useState(typeof window!=="undefined"?window.innerWidth:1024);
+  useEffect(()=>{const h=()=>setW(window.innerWidth);window.addEventListener("resize",h);return()=>window.removeEventListener("resize",h);},[]);
+  return w;
+}
 
 /* ── Shared data ── */
 /* ══════════════════════════════════════════════════════════════
@@ -1781,7 +1783,7 @@ function saveManagerReport(r) { try { localStorage.setItem("heyscott_manager_rep
 async function callAPI(messages, system, opts={}) {
   const model      = opts.model      || "claude-haiku-4-5";
   const max_tokens = opts.max_tokens || 1000;
-  const temperature = opts.temperature ?? 1;
+  const temperature = opts.temperature ?? 0.7;
   const body = {model, max_tokens, messages, temperature};
   if(system) body.system = system;
 
@@ -1942,7 +1944,7 @@ function Ring({score,sz=80}){
 function Modal({children,onClose}){
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(20,15,45,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:24,padding:36,maxWidth:520,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:24,padding:"clamp(20px,4vw,36px)",maxWidth:520,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
         {children}
       </div>
     </div>
@@ -1951,29 +1953,61 @@ function Modal({children,onClose}){
 
 /* ── Top Nav ── */
 
-function TopNav({page, go, userRole, notifCount=2}){
+function TopNav({page, go, isMobile, onMenuToggle}){
+  const {userRole, profile} = useContext(AppCtx);
+  const [profileOpen, setProfileOpen] = useState(false);
   const link=(id,label)=>(
     <button key={id} onClick={()=>go(id)} style={{height:"100%",padding:"0 4px",fontSize:13,fontWeight:500,cursor:"pointer",border:"none",background:"none",borderBottom:page===id?`2px solid ${C.navy}`:"2px solid transparent",color:page===id?C.navy:C.muted,transition:"all 0.15s"}}>
       {label}
     </button>
   );
+  const ini = profile?.name ? profile.name[0].toUpperCase() : userRole==="manager" ? "M" : "B";
   return(
     <header style={{background:C.white,borderBottom:`1px solid ${C.border}`,position:"sticky",top:0,zIndex:50,fontFamily:"'DM Sans',sans-serif"}}>
-      <div style={{display:"flex",alignItems:"center",height:56,padding:"0 24px",gap:0}}>
-        <button onClick={()=>go("landing")} style={{fontWeight:800,fontSize:20,color:C.navy,cursor:"pointer",border:"none",background:"none",marginRight:32,flexShrink:0}}>
+      <div style={{display:"flex",alignItems:"center",height:56,padding:"0 16px",gap:0}}>
+        {isMobile&&<button onClick={onMenuToggle} style={{background:"none",border:"none",cursor:"pointer",fontSize:22,color:C.navy,padding:"0 10px 0 2px",lineHeight:1,flexShrink:0}}>☰</button>}
+        <button onClick={()=>go("landing")} style={{fontWeight:800,fontSize:20,color:C.navy,cursor:"pointer",border:"none",background:"none",marginRight:isMobile?8:32,flexShrink:0}}>
           Hey<span style={{color:C.purple}}>Scott</span>
         </button>
-        <nav style={{display:"flex",alignItems:"flex-end",gap:20,height:"100%"}}>
-          {link("learning","Learning")}
-          {link("analysis","Ask Scott")}
-          {link("progress","Progress")}
-        </nav>
+        {!isMobile&&(
+          <nav style={{display:"flex",alignItems:"flex-end",gap:20,height:"100%"}}>
+            {link("learning","Learning")}
+            {link("analysis","Ask Scott")}
+            {link("progress","Progress")}
+          </nav>
+        )}
         <div style={{flex:1}}/>
         <nav style={{display:"flex",alignItems:"center",gap:14}}>
-          {link("analytics","Analytics")}
-          {link("team","Manager Portal")}
-
-          <Av ini={userRole==="manager"?"M":"B"} col={userRole==="manager"?"#9B91D8":C.lav} sz={32}/>
+          {!isMobile&&link("analytics","Analytics")}
+          {!isMobile&&userRole==="manager"&&link("team","Manager Portal")}
+          <div style={{position:"relative"}}>
+            {profileOpen&&<div style={{position:"fixed",inset:0,zIndex:299}} onClick={()=>setProfileOpen(false)}/>}
+            <button onClick={()=>setProfileOpen(o=>!o)} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center"}}>
+              <Av ini={ini} col={userRole==="manager"?"#9B91D8":C.lav} sz={32}/>
+            </button>
+            {profileOpen&&(
+              <div style={{position:"fixed",right:16,top:64,background:C.white,border:`1px solid ${C.border}`,borderRadius:16,padding:16,minWidth:200,boxShadow:"0 8px 24px rgba(20,15,45,0.14)",zIndex:300}} onClick={e=>e.stopPropagation()}>
+                <div style={{marginBottom:12,paddingBottom:12,borderBottom:`1px solid ${C.border}`}}>
+                  <div style={{fontWeight:700,color:C.navy,fontSize:14}}>{profile?.name||"Your Profile"}</div>
+                  <div style={{fontSize:12,color:C.muted,marginTop:2,textTransform:"capitalize"}}>{userRole}</div>
+                </div>
+                {isMobile&&(
+                  <div style={{marginBottom:12,paddingBottom:12,borderBottom:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:2}}>
+                    {[["learning","Learning"],["analysis","Ask Scott"],["progress","Progress"],["analytics","Analytics"]].map(([id,label])=>(
+                      <button key={id} onClick={()=>{setProfileOpen(false);go(id);}} style={{background:"none",border:"none",color:C.navy,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",padding:"6px 4px",borderRadius:8}}>{label}</button>
+                    ))}
+                    {userRole==="manager"&&<button onClick={()=>{setProfileOpen(false);go("team");}} style={{background:"none",border:"none",color:C.navy,fontSize:13,fontWeight:500,cursor:"pointer",textAlign:"left",padding:"6px 4px",borderRadius:8}}>Manager Portal</button>}
+                  </div>
+                )}
+                <button onClick={()=>{setProfileOpen(false);go("onboarding");}} style={{width:"100%",background:"none",border:`1px solid ${C.border}`,borderRadius:10,padding:"9px 14px",fontSize:13,fontWeight:600,color:C.navy,cursor:"pointer",marginBottom:8,fontFamily:"'DM Sans',sans-serif"}}>
+                  Edit Profile
+                </button>
+                <button onClick={()=>{setProfileOpen(false);clearProfile();go("landing");}} style={{width:"100%",background:"none",border:`1px solid ${C.redBg}`,borderRadius:10,padding:"9px 14px",fontSize:13,fontWeight:600,color:C.red,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                  Sign Out
+                </button>
+              </div>
+            )}
+          </div>
         </nav>
       </div>
     </header>
@@ -1981,9 +2015,10 @@ function TopNav({page, go, userRole, notifCount=2}){
 }
 
 /* ── Left Panel ── */
-function LeftPanel({go}){
+function LeftPanel({go, onClose}){
   return(
-    <aside style={{width:220,flexShrink:0,display:"flex",flexDirection:"column",gap:18}}>
+    <aside style={{width:"100%",flexShrink:0,display:"flex",flexDirection:"column",gap:18}}>
+      {onClose&&<button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:C.muted,alignSelf:"flex-end",lineHeight:1,padding:4,marginBottom:-8}}>✕</button>}
       <div style={{background:C.navy,borderRadius:16,padding:18,color:"#fff"}}>
         <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:2,opacity:0.5,marginBottom:4}}>Overall Progress</div>
         <div style={{fontSize:34,fontWeight:800,marginBottom:10}}>12%</div>
@@ -2033,18 +2068,29 @@ function LeftPanel({go}){
 
 /* ── Shell ── */
 function Shell({page,go,children,panel=true,userRole}){
+  const isMobile=useWindowWidth()<768;
+  const [panelOpen,setPanelOpen]=useState(false);
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'DM Sans',sans-serif"}}>
-      <TopNav page={page} go={go} userRole={userRole}/>
+      <TopNav page={page} go={go} isMobile={isMobile} onMenuToggle={()=>setPanelOpen(o=>!o)}/>
       {panel?(
-        <div style={{display:"flex",minHeight:"calc(100vh - 56px)"}}>
-          <div style={{width:256,background:C.bg,borderRight:`1px solid ${C.border}`,padding:24,flexShrink:0}}>
-            <LeftPanel go={go}/>
-          </div>
-          <main style={{flex:1,background:C.bgDeep,padding:32,overflowY:"auto"}}>{children}</main>
+        <div style={{display:"flex",minHeight:"calc(100vh - 56px)",position:"relative"}}>
+          {isMobile&&panelOpen&&(
+            <div style={{position:"fixed",inset:0,background:"rgba(20,15,45,0.4)",zIndex:200}} onClick={()=>setPanelOpen(false)}>
+              <div style={{width:280,height:"100%",background:C.bg,borderRight:`1px solid ${C.border}`,padding:24,overflowY:"auto",boxShadow:"4px 0 20px rgba(20,15,45,0.12)"}} onClick={e=>e.stopPropagation()}>
+                <LeftPanel go={go} onClose={()=>setPanelOpen(false)}/>
+              </div>
+            </div>
+          )}
+          {!isMobile&&(
+            <div style={{width:256,background:C.bg,borderRight:`1px solid ${C.border}`,padding:24,flexShrink:0}}>
+              <LeftPanel go={go}/>
+            </div>
+          )}
+          <main style={{flex:1,background:C.bgDeep,padding:isMobile?16:32,overflowY:"auto",minWidth:0}}>{children}</main>
         </div>
       ):(
-        <main style={{padding:32}}>{children}</main>
+        <main style={{padding:isMobile?16:32}}>{children}</main>
       )}
     </div>
   );
@@ -2076,7 +2122,7 @@ function Landing({go}){
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'DM Sans',sans-serif"}}>
 
       {/* Navbar */}
-      <header style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 48px",position:"sticky",top:0,background:C.bg,zIndex:10,borderBottom:`1px solid ${C.border}`}}>
+      <header style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px clamp(16px,5vw,48px)",position:"sticky",top:0,background:C.bg,zIndex:10,borderBottom:`1px solid ${C.border}`}}>
         <div style={{display:"flex",alignItems:"center",gap:9}}>
           <div style={{width:30,height:30,background:C.navy,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
             <span style={{color:C.lav,fontSize:12,fontWeight:900,lineHeight:1}}>↗</span>
@@ -2095,7 +2141,7 @@ function Landing({go}){
       </header>
 
       {/* Hero */}
-      <section style={{maxWidth:820,margin:"0 auto",padding:"88px 32px 64px",textAlign:"center"}}>
+      <section style={{maxWidth:820,margin:"0 auto",padding:"clamp(48px,8vw,88px) clamp(16px,4vw,32px) clamp(32px,5vw,64px)",textAlign:"center"}}>
         <div style={{display:"inline-flex",alignItems:"center",border:`1.5px solid rgba(20,15,45,0.18)`,borderRadius:999,padding:"6px 18px",fontSize:13,color:C.navy,marginBottom:36,letterSpacing:0.1,background:"transparent"}}>
           The AI Coach for 360 Recruiters
         </div>
@@ -2135,7 +2181,7 @@ function Landing({go}){
       </div>
 
       {/* How it works */}
-      <section style={{borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,padding:"64px 32px"}}>
+      <section style={{borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,padding:"clamp(36px,6vw,64px) clamp(16px,4vw,32px)"}}>
         <div style={{maxWidth:760,margin:"0 auto"}}>
           <div style={{textAlign:"center",marginBottom:52}}>
             <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:3,color:C.muted,marginBottom:14}}>How it works</div>
@@ -2158,7 +2204,7 @@ function Landing({go}){
 
       {/* Stats band */}
       <div style={{background:C.navy,padding:"52px 24px"}}>
-        <div style={{maxWidth:640,margin:"0 auto",display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:24,textAlign:"center"}}>
+        <div style={{maxWidth:640,margin:"0 auto",display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:24,textAlign:"center"}}>
           {[{n:"+34%",l:"Faster ramp-up"},{n:"<8 min",l:"To first roleplay"},{n:"6 skills",l:"Tracked per recruiter"}].map((s,i)=>(
             <div key={i}>
               <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:38,fontWeight:700,color:C.lav,letterSpacing:-1}}>{s.n}</div>
@@ -2169,7 +2215,7 @@ function Landing({go}){
       </div>
 
       {/* Features grid */}
-      <section style={{maxWidth:760,margin:"0 auto",padding:"64px 32px"}}>
+      <section style={{maxWidth:760,margin:"0 auto",padding:"clamp(36px,6vw,64px) clamp(16px,4vw,32px)"}}>
         <div style={{textAlign:"center",marginBottom:44}}>
           <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:3,color:C.muted,marginBottom:14}}>Features</div>
           <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:"clamp(24px,3.5vw,34px)",fontWeight:600,color:C.navy,letterSpacing:-0.5}}>
@@ -2191,7 +2237,7 @@ function Landing({go}){
       </section>
 
       {/* Testimonial */}
-      <section style={{background:C.bgDeep,borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,padding:"60px 32px"}}>
+      <section className="hs-testimony" style={{background:C.bgDeep,borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,padding:"60px 32px"}}>
         <div style={{maxWidth:560,margin:"0 auto",textAlign:"center"}}>
           <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:21,fontWeight:400,fontStyle:"italic",color:C.navy,lineHeight:1.7,marginBottom:28}}>
             "Scott gave me feedback on my cold calls that my manager never had time to give. Within two weeks I was booking 40% more meetings."
@@ -2207,7 +2253,7 @@ function Landing({go}){
       </section>
 
       {/* Final CTA */}
-      <section style={{maxWidth:680,margin:"0 auto",padding:"72px 32px 88px",textAlign:"center"}}>
+      <section className="hs-final-cta" style={{maxWidth:680,margin:"0 auto",padding:"72px 32px 88px",textAlign:"center"}}>
         <div style={{fontFamily:"'Playfair Display',Georgia,serif",fontSize:"clamp(26px,4vw,40px)",fontWeight:700,color:C.navy,letterSpacing:-0.5,marginBottom:14}}>
           Ready to make better calls?
         </div>
@@ -2274,7 +2320,7 @@ function Onboarding({go,setProfile,setUserRole}){
             {[{r:"learner",label:"I'm a recruiter",desc:"I want to improve my own skills and performance",icon:"🎯"},
               {r:"manager",label:"I'm a manager or team lead",desc:"I want to coach and track my team",icon:"👔"}].map(opt=>(
               <button key={opt.r} onClick={()=>{
-                if(opt.r==="manager"){setUserRole("manager");go("manager");}
+                if(opt.r==="manager"){setUserRole("manager");go("team");}
                 else{setRole(opt.r);}
               }}
                 style={{background:C.white,border:`2px solid ${C.border}`,borderRadius:18,padding:20,cursor:"pointer",textAlign:"left",transition:"all 0.15s",display:"flex",gap:14,alignItems:"center"}}
@@ -3119,9 +3165,7 @@ function ReadingView({lesson, mod, go, onBack, onComplete}){
         {c.reflection&&(
           <div style={{background:"#FFF7ED",borderRadius:18,border:"1px solid #FED7AA",padding:24,marginBottom:20}}>
             <div style={{fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:2,color:"#C2410C",marginBottom:10}}>Reflection Exercise</div>
-            <p style={{fontSize:14,color:"#7C2D12",lineHeight:1.75,marginBottom:14}}>{c.reflection}</p>
-            <textarea rows={4} placeholder="Write your thoughts here..."
-              style={{width:"100%",background:"rgba(255,255,255,0.7)",border:"1px solid #FED7AA",borderRadius:10,padding:12,fontSize:13,color:C.text,outline:"none",resize:"none",fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box"}}/>
+            <p style={{fontSize:14,color:"#7C2D12",lineHeight:1.75}}>{c.reflection}</p>
           </div>
         )}
 
@@ -3282,8 +3326,10 @@ function ConfidenceCheck({type, lessonTitle, aiScore, onComplete, onJournal}){
    ROLEPLAY VIEW — Brief → Split-panel call → Framework debrief
 ══════════════════════════════════════════════════════════════ */
 function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=null, onJournal=null}){
+  const isMobile = useWindowWidth() < 768;
   const [phase, setPhase] = useState("brief");
   const [showPostCheck, setShowPostCheck] = useState(false);
+  const [showBrief, setShowBrief] = useState(false);
   const [msgs, setMsgs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [turns, setTurns] = useState(0);
@@ -3468,7 +3514,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
         role: m.role==="user" ? "user" : "assistant",
         content: m.content
       }));
-      const resp = await callAPI(hist, scenario.system, {model:"claude-haiku-4-5", max_tokens:200});
+      const resp = await callAPI(hist, scenario.system, {model:"claude-haiku-4-5", max_tokens:300, temperature:1});
       // Always strip [Coach:...] from AI response — all feedback goes to post-call debrief only
       const clean = resp.replace(/\[Coach:\s*.+?\]/gs,"").trim();
       const withAI = [...newMsgs, {role:"ai", content:clean, time:ts()}];
@@ -3642,7 +3688,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
         )}
 
         {/* Candidate + Brief side by side */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:18}}>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:14,marginBottom:18}}>
           {/* Candidate profile */}
           <div style={{background:C.white,borderRadius:16,border:`1px solid ${C.border}`,padding:"16px 18px"}}>
             <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1.5,marginBottom:12}}>Who you're calling</div>
@@ -3716,10 +3762,16 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
         @keyframes pulse-ring { 0%{transform:scale(1);opacity:0.6} 100%{transform:scale(1.6);opacity:0} }
         @keyframes mic-active { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.5)} 50%{box-shadow:0 0 0 14px rgba(239,68,68,0)} }
       `}</style>
-      <div style={{display:"grid",gridTemplateColumns:"300px 1fr",minHeight:"calc(100vh - 60px)",fontFamily:"'DM Sans',sans-serif"}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"300px 1fr",minHeight:"calc(100vh - 60px)",fontFamily:"'DM Sans',sans-serif"}}>
 
         {/* ── LEFT PANEL: Brief + Objectives ── */}
-        <div style={{background:C.white,borderRight:`1px solid ${C.border}`,padding:"24px 20px",overflowY:"auto",display:"flex",flexDirection:"column",gap:16}}>
+        <div style={{background:C.white,borderRight:isMobile?"none":`1px solid ${C.border}`,borderBottom:isMobile?`1px solid ${C.border}`:"none",padding:isMobile?"8px 16px":"24px 20px",overflowY:"auto",display:"flex",flexDirection:"column",gap:isMobile?0:16}}>
+          {isMobile&&(
+            <button onClick={()=>setShowBrief(v=>!v)} style={{background:"none",border:"none",padding:"6px 0",cursor:"pointer",display:"flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700,color:C.navy,textAlign:"left"}}>
+              <span>{showBrief?"▲":"▼"}</span>{showBrief?`Hide brief — ${cand?.name}`:`Show brief — ${cand?.name}`}
+            </button>
+          )}
+          <div style={{display:isMobile&&!showBrief?"none":"flex",flexDirection:"column",gap:16,paddingTop:isMobile?8:0}}>
 
           {/* Candidate */}
           <div>
@@ -3783,6 +3835,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
               </div>
             )}
           </div>
+          </div>{/* end collapsible content wrapper */}
         </div>
 
         {/* ── RIGHT PANEL: Phone call ── */}
@@ -4023,7 +4076,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
                 return (
                   <div style={{marginBottom:14}}>
                     {/* Row 1: Talk ratio + Tone + Pause */}
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:10}}>
+                    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:10,marginBottom:10}}>
                       {tr && (
                         <div style={{background:C.white,borderRadius:14,padding:"14px 16px",border:`1px solid ${C.border}`}}>
                           <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🗣 Talk ratio</div>
@@ -4055,7 +4108,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
                       )}
                     </div>
                     {/* Row 2: Call structure + Questioning depth */}
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
                       {cs && (
                         <div style={{background:C.white,borderRadius:14,padding:"14px 16px",border:`1px solid ${C.border}`}}>
                           <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>📋 Call structure</div>
@@ -4121,7 +4174,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
                 <div style={{background:"#FFF7ED",borderRadius:16,padding:"18px 22px",border:"1px solid #FED7AA",marginBottom:12}}>
                   <div style={{fontSize:10,fontWeight:800,color:"#C2410C",textTransform:"uppercase",letterSpacing:1.5,marginBottom:12}}>⚡ Biggest missed opportunity</div>
                   {/* The actual lines */}
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                  <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10,marginBottom:12}}>
                     {(result.missedMoment.recruiterLine||result.missedMoment.candidateLine) ? (
                       <>
                         {result.missedMoment.candidateLine && (
@@ -4236,7 +4289,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
               )}
 
               {/* ── What worked / To improve ── */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+              <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12,marginBottom:14}}>
                 <div style={{background:C.white,borderRadius:14,border:`1px solid ${C.border}`,padding:18}}>
                   <div style={{fontSize:11,fontWeight:700,color:C.green,marginBottom:12}}>✓ What worked</div>
                   {result.strengths?.map((s,i)=>(
@@ -4288,7 +4341,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
                   <div style={{fontSize:10,fontWeight:800,color:C.purple,textTransform:"uppercase",letterSpacing:1.5,marginBottom:14}}>⚡ Opportunities you captured — and how to take them to great</div>
                   {result.capturedOpportunities.map((co,i)=>(
                     <div key={i} style={{marginBottom:i<result.capturedOpportunities.length-1?18:0,paddingBottom:i<result.capturedOpportunities.length-1?18:0,borderBottom:i<result.capturedOpportunities.length-1?`1px solid ${C.bg}`:"none"}}>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:8,marginBottom:8}}>
                         <div style={{background:"#FFF7ED",borderRadius:8,padding:"8px 12px",border:"1px solid #FED7AA"}}>
                           <div style={{fontSize:9,fontWeight:700,color:"#C2410C",textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>They said</div>
                           <p style={{fontSize:12,color:"#7C2D12",fontStyle:"italic",lineHeight:1.5,margin:0}}>"{co.candidateSignal}"</p>
@@ -4416,7 +4469,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
                     return(
                       <div style={{background:C.navy,borderRadius:14,padding:"16px 20px"}}>
                         <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Methodology pattern</div>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:12}}>
+                        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:10,marginBottom:12}}>
                           {[{l:"Average across all",v:avg},{l:"Strongest fit",v:`${highest.name.split(" ")[0]} (${highest.score})`},{l:"Biggest gap",v:`${lowest.name.split(" ")[0]} (${lowest.score})`}].map((s,i)=>(
                             <div key={i} style={{background:"rgba(255,255,255,0.07)",borderRadius:10,padding:"10px 12px",textAlign:"center"}}>
                               <div style={{fontSize:i===0?22:14,fontWeight:800,color:"#fff",lineHeight:1}}>{s.v}</div>
@@ -4632,7 +4685,7 @@ SCENARIO: ${brief}
 DIFFICULTY: ${scenario.difficulty||"beginner"}
 
 TRANSCRIPT:
-${transcript.slice(0, 2000)}
+${transcript}
 
 Analyse using SPIN Selling (situation/problem/implication/need-payoff questions), Challenger Sale (reframing), active listening signals, and objection handling frameworks. Score behaviours not intentions — what actually happened in the transcript.
 
@@ -4658,7 +4711,7 @@ Return ONLY this JSON (no markdown, no extra text):
 Fill every field with real observations from the transcript above.`;
 
   try {
-    const fb = await callAPI([{role:"user", content:prompt}], null, {model:"claude-haiku-4-5", max_tokens:1000});
+    const fb = await callAPI([{role:"user", content:prompt}], null, {model:"claude-sonnet-4-6", max_tokens:1200, temperature:0});
     const parsed = parseJSON(fb);
     setResult(parsed);
     const rpEntry = {
@@ -4994,6 +5047,7 @@ function ScottOnboarding({onComplete, existingProfile=null}){
    ANALYSIS
 ══════════════════════════════════════════════════════════════ */
 function Analysis({go, profile:appProfile=null, userId=null}){
+  const isMobile = useWindowWidth() < 768;
   const effectiveProfile = appProfile || loadProfile();
   const [activeSection, setActiveSection] = useState("review"); // review | ask
 
@@ -5039,10 +5093,10 @@ function Analysis({go, profile:appProfile=null, userId=null}){
     setLoading(true); setResult(null); setAnalysisError(null);
     setShowTranscript(false);
 
-    // Truncate transcript to max 300 words
+    // Truncate transcript to max 1000 words, keeping start and end for context
     const words = transcript.trim().split(/\s+/);
-    const short = words.length > 300
-      ? words.slice(0,120).join(' ') + ' [...] ' + words.slice(-80).join(' ')
+    const short = words.length > 1000
+      ? words.slice(0, 800).join(' ') + ' [...] ' + words.slice(-200).join(' ')
       : transcript.trim();
 
     const recL  = (transcript.match(/^Recruiter:/gim)||[]).length;
@@ -5123,7 +5177,7 @@ Replace every placeholder with real observations from the transcript.`;
       const raw = await callAPI(
         [{role:'user', content: prompt}],
         null,
-        {model:'claude-haiku-4-5', max_tokens:1000, temperature:0}
+        {model:'claude-haiku-4-5', max_tokens:1200, temperature:0}
       );
 
       // Extract JSON from response
@@ -5186,17 +5240,24 @@ ${effectiveProfile ? `This recruiter: ${effectiveProfile.focus}, billing ${effec
 
 HOW YOU COACH:
 - SPIN Selling: you help them move from situation → problem → implication → need-payoff questions
-- Challenger approach: teach them to reframe the candidate's thinking, not just respond to it  
+- Challenger approach: teach them to reframe the candidate's thinking, not just respond to it
 - Emotional intelligence: acknowledge the candidate's state before trying to change it
 - When they share a specific line or situation, respond to THAT specifically — not generically
 - Always include one exact script: "Try this: [exact words]"
 - If they're stuck on mindset (fear of rejection, procrastination), address the feeling first then the tactic
 - Keep responses to 3-4 short paragraphs. They're between calls.
-- Never say "great question" or start with sycophancy. Just answer.`;
+- Never say "great question" or start with sycophancy. Just answer.
+
+RESPONSE STRUCTURE:
+- Write 3-4 focused paragraphs, each making one distinct point
+- First paragraph: acknowledge the exact situation or feeling they described — make them feel heard before fixing anything
+- Middle paragraphs: give the insight or reframe, then the tactic
+- Always end with a concrete script line formatted as: Try this: "[exact words to say]"
+- Be specific to what they just shared — never give advice that could apply to anyone`;
 
     try {
-      const messages = newHistory.map(m => ({role:m.role, content:m.content}));
-      const resp = await callAPI(messages, systemPrompt, {model:"claude-haiku-4-5", max_tokens:600});
+      const messages = newHistory.slice(-10).map(m => ({role:m.role, content:m.content}));
+      const resp = await callAPI(messages, systemPrompt, {model:"claude-sonnet-4-6", max_tokens:800, temperature:0.7});
       setChatHistory(prev => [...prev, {role:"assistant", content:resp}]);
     } catch(e){
       setChatHistory(prev => [...prev, {role:"assistant", content:`⚠ ${e.message || "Connection issue — try again in a moment."}`}]);
@@ -5218,7 +5279,7 @@ HOW YOU COACH:
 
   return(
     <Shell page="analysis" go={go} userRole="learner">
-      <div style={{maxWidth:820}}>
+      <div style={{maxWidth:820,padding:isMobile?"0 4px":0}}>
 
         {/* Page header */}
         <div style={{marginBottom:20}}>
@@ -5465,7 +5526,7 @@ HOW YOU COACH:
                   return(
                     <div style={{animation:"fadeUp 0.3s ease both"}}>
                       {/* Summary strip */}
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
+                      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:10,marginBottom:16}}>
                         {[{label:"Behaviours present",val:present,col:C.green,bg:C.greenBg},{label:"Partial",val:partial,col:"#92400E",bg:"#FEF3C7"},{label:"Not yet present",val:absent,col:C.red,bg:"#FEF2F2"}].map((s,i)=>(
                           <div key={i} style={{background:s.bg,borderRadius:12,padding:"12px 14px",textAlign:"center"}}>
                             <div style={{fontSize:26,fontWeight:900,color:s.col,lineHeight:1}}>{s.val}</div>
@@ -5506,7 +5567,7 @@ HOW YOU COACH:
                       })}
 
                       {/* Top win + miss */}
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:4}}>
+                      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12,marginTop:4}}>
                         {result.topWin&&(
                           <div style={{background:"#F0FDF4",borderRadius:14,border:"1px solid #BBF7D0",padding:"14px 16px"}}>
                             <div style={{fontSize:9,fontWeight:800,color:C.green,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>✓ Best moment</div>
@@ -5760,7 +5821,7 @@ function Progress({go}){
         </div>
 
         {/* Stats strip */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:24}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:12,marginBottom:24}}>
           {[
             {label:"Modules complete",val:`${completedModules}/${totalModules}`,icon:"📚"},
             {label:"Lessons done",    val:`${completedLessons}/${totalLessons}`,icon:"✓"},
@@ -5824,6 +5885,7 @@ function Progress({go}){
    ANALYTICS
 ══════════════════════════════════════════════════════════════ */
 function Analytics({go}){
+  const isMobile = useWindowWidth() < 768;
   const roleplays  = loadRoleplays();
   const reflections = loadReflections();
 
@@ -6664,7 +6726,8 @@ Regressing: ${analyticsTeam.filter(m=>m.status==="regressing").map(m=>`${m.name}
             </div>
 
             {/* Per-person rows */}
-            <div style={{background:C.white,borderRadius:14,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+            <div style={{background:C.white,borderRadius:14,border:`1px solid ${C.border}`,overflow:"hidden",overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+              <div style={{minWidth:640}}>
               {/* Header */}
               <div style={{display:"grid",gridTemplateColumns:"200px 1fr 80px 90px 80px 100px",gap:0,padding:"10px 16px",background:C.bg,borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:0.5}}>
                 <span>Consultant</span>
@@ -6740,6 +6803,7 @@ Regressing: ${analyticsTeam.filter(m=>m.status==="regressing").map(m=>`${m.name}
                     </div>
                   );
               })}
+              </div>{/* end minWidth wrapper */}
             </div>
 
             {/* Flag notes */}
@@ -7018,6 +7082,7 @@ export default function App(){
   };
 
   return (
+    <AppCtx.Provider value={{userRole,profile}}>
     <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,minHeight:"100vh"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap');
@@ -7030,6 +7095,10 @@ export default function App(){
         ::-webkit-scrollbar{width:4px;height:4px}
         ::-webkit-scrollbar-track{background:transparent}
         ::-webkit-scrollbar-thumb{background:#E4DDD6;border-radius:999px}
+        @media(max-width:767px){
+          .hs-testimony{padding:40px 16px!important}
+          .hs-final-cta{padding:48px 16px 64px!important}
+        }
       `}</style>
 
       {page==="landing"    && <Landing go={go}/>}
@@ -7040,8 +7109,10 @@ export default function App(){
       {page==="analysis"   && <Analysis go={go} profile={profile}/>}
       {page==="progress"   && <Progress go={go}/>}
       {page==="analytics"  && <Analytics go={go}/>}
-      {page==="team"       && <ManagerDashboard go={go}/>}
-      {page==="admin"      && <AdminWizard go={go}/>}
+      {page==="team"  && userRole==="manager" && <ManagerDashboard go={go}/>}
+      {page==="team"  && userRole!=="manager" && <div style={{padding:48,textAlign:"center",fontFamily:"'DM Sans',sans-serif",color:C.muted,fontSize:15}}>Manager access required.</div>}
+      {page==="admin" && userRole==="manager" && <AdminWizard go={go}/>}
     </div>
+    </AppCtx.Provider>
   );
 }
