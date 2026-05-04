@@ -1936,6 +1936,10 @@ OR if no meaningful gap:
 }
 
 /* ── Micro components ── */
+function NavGuard({go, to}){
+  useEffect(()=>{ go(to); },[]);
+  return null;
+}
 function Av({ini,col,sz=32}){
   return <div style={{width:sz,height:sz,borderRadius:"50%",background:col,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:sz*0.33,flexShrink:0,userSelect:"none"}}>{ini}</div>;
 }
@@ -1989,7 +1993,7 @@ function TopNav({page, go, userRole, notifCount=2}){
         <div style={{flex:1}}/>
         <nav style={{display:"flex",alignItems:"center",gap:14}}>
           {link("analytics","Analytics")}
-          {link("team","Manager Portal")}
+          {userRole==="manager" && link("team","Manager Portal")}
 
           <Av ini={userRole==="manager"?"M":"B"} col={userRole==="manager"?"#9B91D8":C.lav} sz={32}/>
         </nav>
@@ -2069,6 +2073,294 @@ function Shell({page,go,children,panel=true,userRole}){
 }
 
 /* ════════════════════════════════════════════════════════════════
+   AUTH PAGES
+════════════════════════════════════════════════════════════════ */
+
+function AuthLoadingScreen(){
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:16}}>
+      <div style={{fontWeight:800,fontSize:22,color:C.navy}}>Hey<span style={{color:C.purple}}>Scott</span></div>
+      <div style={{display:"flex",gap:6}}>{[0,1,2].map(i=><div key={i} style={{width:8,height:8,borderRadius:"50%",background:C.purple,animation:"bounce 1s infinite",animationDelay:`${i*0.2}s`}}/>)}</div>
+    </div>
+  );
+}
+
+function AuthCard({children, title, subtitle}){
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div style={{background:C.white,borderRadius:16,border:`1px solid ${C.border}`,padding:"36px 32px",width:"100%",maxWidth:420,boxShadow:"0 4px 24px rgba(0,0,0,0.06)"}}>
+        <div style={{textAlign:"center",marginBottom:28}}>
+          <div style={{fontWeight:800,fontSize:24,color:C.navy,marginBottom:6}}>Hey<span style={{color:C.purple}}>Scott</span></div>
+          {title && <div style={{fontWeight:700,fontSize:18,color:C.navy,marginBottom:4}}>{title}</div>}
+          {subtitle && <div style={{fontSize:13,color:C.muted,lineHeight:1.5}}>{subtitle}</div>}
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function LoginPage({go, onAuth}){
+  const [email, setEmail]     = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState(null);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if(!email.trim() || !password) return;
+    setLoading(true); setError(null);
+    try {
+      const d = await sb.signIn(email.trim(), password);
+      if(d.error || !d.access_token) { setError(d.error?.message || "Invalid email or password."); return; }
+      sb.saveSession(d.access_token, d.user?.id);
+      const prof = await sbGetProfile(d.user.id);
+      await onAuth(d.user, prof?.role || 'learner');
+    } catch(e) {
+      setError("Connection issue — please try again.");
+    } finally { setLoading(false); }
+  };
+
+  return(
+    <AuthCard title="Welcome back" subtitle="Log in to continue your coaching.">
+      <form onSubmit={submit} style={{display:"flex",flexDirection:"column",gap:14}}>
+        {error && <div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#991B1B"}}>{error}</div>}
+        <div>
+          <label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:5}}>Email</label>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} required
+            placeholder="your@email.com"
+            style={{width:"100%",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",fontSize:13,color:C.text,outline:"none",background:C.bg,boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:5}}>Password</label>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} required
+            placeholder="••••••••"
+            style={{width:"100%",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",fontSize:13,color:C.text,outline:"none",background:C.bg,boxSizing:"border-box"}}/>
+        </div>
+        <button type="submit" disabled={loading||!email.trim()||!password}
+          style={{background:C.purple,color:"#fff",border:"none",borderRadius:8,padding:"12px",fontWeight:700,fontSize:14,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,marginTop:4}}>
+          {loading ? "Logging in…" : "Log in"}
+        </button>
+      </form>
+      <div style={{textAlign:"center",marginTop:20,fontSize:13,color:C.muted}}>
+        Don't have an account?{" "}
+        <button onClick={()=>go("signup")} style={{background:"none",border:"none",color:C.purple,fontWeight:600,cursor:"pointer",fontSize:13}}>Sign up</button>
+      </div>
+    </AuthCard>
+  );
+}
+
+function SignupPage({go, onAuth}){
+  const [step, setStep]       = useState("type"); // "type" | "form"
+  const [accountType, setAccountType] = useState(null); // "individual" | "manager"
+  const [name, setName]       = useState("");
+  const [email, setEmail]     = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState(null);
+  const [companyId, setCompanyId] = useState(null);
+  const [inviteLink, setInviteLink] = useState(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteSent, setInviteSent] = useState(false);
+
+  const selectType = (type) => { setAccountType(type); setStep("form"); };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if(!name.trim() || !email.trim() || password.length < 6) return;
+    setLoading(true); setError(null);
+    try {
+      const role = accountType === "manager" ? "manager" : "individual";
+      const d = await sb.signUp(email.trim(), password, { name: name.trim(), role });
+      if(d.error || !d.user) { setError(d.error?.message || "Signup failed — try a different email."); return; }
+      const token = d.access_token || d.session?.access_token;
+      if(token) sb.saveSession(token, d.user.id);
+      await sbSaveProfile(d.user.id, { name: name.trim(), role, focus:"", billings:"", challenge:"", ownChallenge:"" });
+
+      if(accountType === "manager") {
+        try {
+          const resp = await fetch("/api/create-team", {
+            method:"POST", headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({ userId: d.user.id, teamName: name.trim()+"'s Team", token })
+          });
+          const teamData = await resp.json();
+          if(teamData.companyId) {
+            setCompanyId(teamData.companyId);
+            setInviteLink(`${window.location.origin}?company=${teamData.companyId}`);
+          }
+        } catch(te) { console.error("create-team error:", te); }
+        setStep("invite");
+      } else {
+        await onAuth(d.user, role);
+      }
+    } catch(e) {
+      setError("Connection issue — please try again.");
+    } finally { setLoading(false); }
+  };
+
+  const sendInvite = async () => {
+    if(!inviteEmail.trim() || !companyId) return;
+    try {
+      await fetch("/api/invite", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ email: inviteEmail.trim(), companyId })
+      });
+      setInviteSent(true); setInviteEmail("");
+      setTimeout(()=>setInviteSent(false), 3000);
+    } catch(e) {}
+  };
+
+  if(step === "invite"){
+    return(
+      <AuthCard title="Your team is ready" subtitle="Invite your recruiters to join.">
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          {inviteLink && (
+            <div>
+              <div style={{fontSize:12,fontWeight:600,color:C.muted,marginBottom:6}}>Shareable invite link</div>
+              <div style={{display:"flex",gap:8}}>
+                <div style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",fontSize:11,color:C.muted,wordBreak:"break-all"}}>{inviteLink}</div>
+                <button onClick={()=>navigator.clipboard?.writeText(inviteLink)}
+                  style={{background:C.purple,color:"#fff",border:"none",borderRadius:8,padding:"9px 14px",fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0}}>Copy</button>
+              </div>
+            </div>
+          )}
+          <div>
+            <div style={{fontSize:12,fontWeight:600,color:C.muted,marginBottom:6}}>Or invite by email</div>
+            <div style={{display:"flex",gap:8}}>
+              <input type="email" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)}
+                placeholder="recruiter@company.com"
+                style={{flex:1,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,color:C.text,outline:"none",background:C.bg,boxSizing:"border-box"}}/>
+              <button onClick={sendInvite} disabled={!inviteEmail.trim()}
+                style={{background:inviteEmail.trim()?C.purple:C.border,color:inviteEmail.trim()?"#fff":C.muted,border:"none",borderRadius:8,padding:"9px 14px",fontSize:12,fontWeight:600,cursor:inviteEmail.trim()?"pointer":"not-allowed",flexShrink:0}}>
+                {inviteSent ? "Sent!" : "Send"}
+              </button>
+            </div>
+          </div>
+          <button onClick={async()=>{ const u = await sb.getUser(); if(u) await onAuth(u, "manager"); }}
+            style={{background:C.navy,color:"#fff",border:"none",borderRadius:8,padding:"12px",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:8}}>
+            Go to Manager Portal →
+          </button>
+        </div>
+      </AuthCard>
+    );
+  }
+
+  if(step === "type"){
+    return(
+      <AuthCard title="Create your account" subtitle="How will you use HeyScott?">
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {[
+            {type:"individual", icon:"👤", label:"Individual account", desc:"Just me, practising my skills and tracking progress."},
+            {type:"manager",    icon:"👥", label:"Team account",       desc:"I manage a team of recruiters and want to coach them."},
+          ].map(opt=>(
+            <button key={opt.type} onClick={()=>selectType(opt.type)}
+              style={{background:C.bg,border:`2px solid ${C.border}`,borderRadius:12,padding:"16px 18px",textAlign:"left",cursor:"pointer",transition:"all 0.15s",display:"flex",gap:14,alignItems:"flex-start"}}>
+              <span style={{fontSize:24,lineHeight:1}}>{opt.icon}</span>
+              <div>
+                <div style={{fontWeight:700,color:C.navy,fontSize:14,marginBottom:3}}>{opt.label}</div>
+                <div style={{fontSize:12,color:C.muted,lineHeight:1.4}}>{opt.desc}</div>
+              </div>
+            </button>
+          ))}
+          <div style={{textAlign:"center",marginTop:8,fontSize:13,color:C.muted}}>
+            Already have an account?{" "}
+            <button onClick={()=>go("login")} style={{background:"none",border:"none",color:C.purple,fontWeight:600,cursor:"pointer",fontSize:13}}>Log in</button>
+          </div>
+        </div>
+      </AuthCard>
+    );
+  }
+
+  return(
+    <AuthCard
+      title={accountType==="manager" ? "Set up your team account" : "Create your account"}
+      subtitle={accountType==="manager" ? "You'll get an invite link to share with your team." : "Get personalised coaching tailored to you."}>
+      <form onSubmit={submit} style={{display:"flex",flexDirection:"column",gap:14}}>
+        {error && <div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#991B1B"}}>{error}</div>}
+        <div>
+          <label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:5}}>Your name</label>
+          <input type="text" value={name} onChange={e=>setName(e.target.value)} required
+            placeholder="Alex Chen"
+            style={{width:"100%",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",fontSize:13,color:C.text,outline:"none",background:C.bg,boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:5}}>Email</label>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} required
+            placeholder="your@email.com"
+            style={{width:"100%",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",fontSize:13,color:C.text,outline:"none",background:C.bg,boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:5}}>Password</label>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} required minLength={6}
+            placeholder="At least 6 characters"
+            style={{width:"100%",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",fontSize:13,color:C.text,outline:"none",background:C.bg,boxSizing:"border-box"}}/>
+        </div>
+        <button type="submit" disabled={loading||!name.trim()||!email.trim()||password.length<6}
+          style={{background:C.purple,color:"#fff",border:"none",borderRadius:8,padding:"12px",fontWeight:700,fontSize:14,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,marginTop:4}}>
+          {loading ? "Creating account…" : accountType==="manager" ? "Create team account" : "Create account"}
+        </button>
+        <button type="button" onClick={()=>setStep("type")}
+          style={{background:"none",border:"none",color:C.muted,fontSize:13,cursor:"pointer",textAlign:"center"}}>
+          ← Change account type
+        </button>
+      </form>
+    </AuthCard>
+  );
+}
+
+function InvitePage({go, onAuth}){
+  const companyId = new URLSearchParams(window.location.search).get('company');
+  const [name, setName]       = useState("");
+  const [email, setEmail]     = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState(null);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if(!name.trim() || !email.trim() || password.length < 6) return;
+    setLoading(true); setError(null);
+    try {
+      const d = await sb.signUp(email.trim(), password, { name: name.trim(), role: "learner", company_id: companyId });
+      if(d.error || !d.user) { setError(d.error?.message || "Signup failed — try a different email."); return; }
+      const token = d.access_token || d.session?.access_token;
+      if(token) sb.saveSession(token, d.user.id);
+      await sbSaveProfile(d.user.id, { name: name.trim(), role: "learner", company_id: companyId, focus:"", billings:"", challenge:"", ownChallenge:"" });
+      await onAuth(d.user, "learner");
+    } catch(e) {
+      setError("Connection issue — please try again.");
+    } finally { setLoading(false); }
+  };
+
+  return(
+    <AuthCard title="You've been invited" subtitle="Create your account to join your team on HeyScott.">
+      <form onSubmit={submit} style={{display:"flex",flexDirection:"column",gap:14}}>
+        {error && <div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#991B1B"}}>{error}</div>}
+        <div>
+          <label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:5}}>Your name</label>
+          <input type="text" value={name} onChange={e=>setName(e.target.value)} required placeholder="Alex Chen"
+            style={{width:"100%",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",fontSize:13,color:C.text,outline:"none",background:C.bg,boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:5}}>Email</label>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} required placeholder="your@email.com"
+            style={{width:"100%",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",fontSize:13,color:C.text,outline:"none",background:C.bg,boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <label style={{fontSize:12,fontWeight:600,color:C.muted,display:"block",marginBottom:5}}>Password</label>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} required minLength={6} placeholder="At least 6 characters"
+            style={{width:"100%",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",fontSize:13,color:C.text,outline:"none",background:C.bg,boxSizing:"border-box"}}/>
+        </div>
+        <button type="submit" disabled={loading||!name.trim()||!email.trim()||password.length<6}
+          style={{background:C.purple,color:"#fff",border:"none",borderRadius:8,padding:"12px",fontWeight:700,fontSize:14,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,marginTop:4}}>
+          {loading ? "Joining team…" : "Join team"}
+        </button>
+      </form>
+    </AuthCard>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════
    LANDING PAGE — Clean carousel / section scroll
 ════════════════════════════════════════════════════════════════ */
 function Landing({go}){
@@ -2102,8 +2394,8 @@ function Landing({go}){
           <span style={{fontWeight:700,fontSize:16,color:C.navy,letterSpacing:-0.2}}>HeyScott</span>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:24}}>
-          <button onClick={()=>go("onboarding")} style={{background:"none",border:"none",color:C.navy,fontSize:14,fontWeight:500,cursor:"pointer",opacity:0.65}}>Log in</button>
-          <button onClick={()=>go("onboarding")}
+          <button onClick={()=>go("login")} style={{background:"none",border:"none",color:C.navy,fontSize:14,fontWeight:500,cursor:"pointer",opacity:0.65}}>Log in</button>
+          <button onClick={()=>go("signup")}
             style={{background:sage,color:"#fff",border:"none",borderRadius:5,padding:"10px 22px",fontSize:13,fontWeight:600,cursor:"pointer",letterSpacing:0.1,transition:"background 0.15s"}}
             onMouseEnter={e=>e.currentTarget.style.background=sageDark}
             onMouseLeave={e=>e.currentTarget.style.background=sage}>
@@ -2128,7 +2420,7 @@ function Landing({go}){
         </p>
 
         <div style={{maxWidth:420,margin:"0 auto"}}>
-          <button onClick={()=>go("onboarding")}
+          <button onClick={()=>go("signup")}
             style={{width:"100%",background:sage,color:"#fff",border:"none",borderRadius:5,padding:"17px 0",fontSize:15,fontWeight:600,cursor:"pointer",letterSpacing:0.2,transition:"background 0.15s"}}
             onMouseEnter={e=>e.currentTarget.style.background=sageDark}
             onMouseLeave={e=>e.currentTarget.style.background=sage}>
@@ -2233,7 +2525,7 @@ function Landing({go}){
           Start your free diagnostic. No setup. No credit card. Just better calls.
         </p>
         <div style={{maxWidth:420,margin:"0 auto"}}>
-          <button onClick={()=>go("onboarding")}
+          <button onClick={()=>go("signup")}
             style={{width:"100%",background:sage,color:"#fff",border:"none",borderRadius:5,padding:"17px 0",fontSize:15,fontWeight:600,cursor:"pointer",marginBottom:16,transition:"background 0.15s"}}
             onMouseEnter={e=>e.currentTarget.style.background=sageDark}
             onMouseLeave={e=>e.currentTarget.style.background=sage}>
@@ -3473,6 +3765,21 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
   };
 
 
+  // ── ROLEPLAY PERSONALISATION ──
+  const buildPersonalisedSystem = (scen, prof) => {
+    if(!prof?.focus) return scen.system;
+    const b = prof.billings || "";
+    const level = (b.includes("500") || b.includes("1m")) ? "senior"
+      : b.includes("250") ? "mid-level" : "junior";
+    return scen.system + `
+
+RECRUITER CONTEXT — calibrate your responses to this:
+- Recruiter's sector: ${prof.focus}
+- Experience level: ${level} (${b || "not stated"})
+- Their stated challenge: "${prof.ownChallenge || prof.challenge || "not stated"}"
+If the opportunity being discussed is in their sector, acknowledge it naturally. ${level === "junior" ? "Stay slightly more guarded — they need to earn the conversation." : "Warm up a little faster once they demonstrate skill."}`;
+  };
+
   // ── SEND MESSAGE ──
   const sendMessage = async (text) => {
     if(!text?.trim() || processingRef.current) return;
@@ -3488,7 +3795,7 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
         role: m.role==="user" ? "user" : "assistant",
         content: m.content
       }));
-      const resp = await callAPI(hist, scenario.system, {model:"claude-haiku-4-5", max_tokens:300, temperature:1});
+      const resp = await callAPI(hist, buildPersonalisedSystem(scenario, profile), {model:"claude-haiku-4-5", max_tokens:300, temperature:1});
       // Always strip [Coach:...] from AI response — all feedback goes to post-call debrief only
       const clean = resp.replace(/\[Coach:\s*.+?\]/gs,"").trim();
       const withAI = [...newMsgs, {role:"ai", content:clean, time:ts()}];
@@ -5023,18 +5330,6 @@ function ScottOnboarding({onComplete, existingProfile=null}){
 function Analysis({go, profile:appProfile=null, userId=null}){
   const isMobile = useWindowWidth() < 768;
   const effectiveProfile = appProfile || loadProfile();
-  const [activeSection, setActiveSection] = useState("review"); // review | ask
-
-  // ── REVIEW A CALL state ──
-  const [transcript, setTranscript] = useState("");
-  const [loading, setLoading]       = useState(false);
-  const [result, setResult]         = useState(null);
-  const [analysisError, setAnalysisError] = useState(null);
-  const [resultTab, setResultTab]   = useState("phases");
-  const [stageIdx, setStageIdx]     = useState(0);
-  const [showTranscript, setShowTranscript] = useState(true);
-
-
   // ── ASK SCOTT state ──
   const [chatHistory, setChatHistory] = useState([]);
   const [chatInput, setChatInput]     = useState("");
@@ -5042,162 +5337,9 @@ function Analysis({go, profile:appProfile=null, userId=null}){
   const chatRef = useRef(null);
   const chatInputRef = useRef(null);
 
-  const stages = [
-    "Reading your call…",
-    "Checking opening and permission…",
-    "Analysing discovery questions…",
-    "Checking listening and signals…",
-    "Reviewing close and next steps…",
-    "Writing your coaching report…",
-  ];
-
-  useEffect(()=>{
-    if(!loading){ setStageIdx(0); return; }
-    const t = setInterval(()=> setStageIdx(s=>(s+1)%stages.length), 1800);
-    return ()=> clearInterval(t);
-  },[loading]);
-
   useEffect(()=>{
     if(chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   },[chatHistory]);
-
-    // ── ANALYSE TRANSCRIPT ──
-  const runAnalysis = async () => {
-    if(!transcript.trim()) return;
-    setLoading(true); setResult(null); setAnalysisError(null);
-    setShowTranscript(false);
-
-    // Truncate transcript to max 1000 words, keeping start and end for context
-    const words = transcript.trim().split(/\s+/);
-    const short = words.length > 1000
-      ? words.slice(0, 800).join(' ') + ' [...] ' + words.slice(-200).join(' ')
-      : transcript.trim();
-
-    const recL  = (transcript.match(/^Recruiter:/gim)||[]).length;
-    const othL  = (transcript.match(/^[A-Z][^:]{0,20}:/gm)||[]).length - recL;
-    const total = Math.max(recL + othL, 1);
-    const recPct  = Math.round(recL/total*100);
-    const candPct = 100 - recPct;
-
-    const prof = effectiveProfile
-      ? `Context: ${effectiveProfile.focus}, ${effectiveProfile.billings}. Challenge: "${effectiveProfile.ownChallenge||effectiveProfile.challenge}".`
-      : '';
-
-    const prompt = `You are Scott, a senior recruitment coach. Analyse this cold call transcript and provide coaching.
-
-${prof}
-Talk ratio: Recruiter ${recPct}%, Candidate ${candPct}%.
-
-TRANSCRIPT:
-${short}
-
-ANALYSE using these frameworks:
-- SPIN Selling: did they ask Situation, Problem, Implication, Need-Payoff questions?
-- Challenger Sale: did they reframe the candidate's thinking or just respond?
-- Emotional Intelligence: did they read and respond to the candidate's emotional state?
-- Permission-based opening: did they earn the right to continue the conversation?
-- Commitment ladder: did they build micro-agreements before the close?
-
-For each behaviour: check what ACTUALLY happened in the transcript. Use verbatim quotes as evidence.
-Status values must be exactly: present, absent, partial, or n/a.
-
-Return ONLY this JSON (no markdown, no explanation before or after):
-{
-  "verdict": "Developing",
-  "callSummary": "2-3 sentences. Start with a genuine strength and quote one line. Then name the main gap. Warm coaching tone.",
-  "talkRatio": {"recruiter": ${recPct}, "candidate": ${candPct}, "verdict": "Balanced", "note": "One sentence on what this ratio meant for this call."},
-  "behaviours": {
-    "opening": [
-      {"behaviour": "Hook specific to candidate", "status": "absent", "evidence": null, "note": "One coaching sentence — if absent, give exact example of what a good hook looks like."},
-      {"behaviour": "Asked permission", "status": "absent", "evidence": null, "note": "One sentence."},
-      {"behaviour": "No salary in opening", "status": "present", "evidence": null, "note": "One sentence."},
-      {"behaviour": "Peer-level tone", "status": "partial", "evidence": null, "note": "One sentence."}
-    ],
-    "discovery": [
-      {"behaviour": "Asked situational questions", "status": "absent", "evidence": null, "note": "If absent: give exact situational question they could have asked."},
-      {"behaviour": "Asked a problem question", "status": "absent", "evidence": null, "note": "If absent: give exact problem question based on this scenario."},
-      {"behaviour": "Asked implication question", "status": "absent", "evidence": null, "note": "If absent: give exact implication question — what does staying put cost them?"}
-    ],
-    "listening": [
-      {"behaviour": "Followed signal with question", "status": "absent", "evidence": null, "note": "Identify the specific signal they missed and what to ask instead."},
-      {"behaviour": "Used candidate words", "status": "absent", "evidence": null, "note": "One sentence."}
-    ],
-    "objections": [
-      {"behaviour": "Acknowledged before responding", "status": "n/a", "evidence": null, "note": "One sentence — or n/a if no objections arose."}
-    ],
-    "close": [
-      {"behaviour": "Specific agreed next step", "status": "absent", "evidence": null, "note": "If absent: give exact close they should have used."}
-    ]
-  },
-  "funnel": {
-    "deepestLevel": "none",
-    "situational": {"reached": false, "example": null, "nextLevel": "Write an exact situational question for THIS scenario."},
-    "problem": {"reached": false, "example": null, "nextLevel": "Write an exact problem question for THIS scenario."},
-    "implication": {"reached": false, "example": null, "nextLevel": "Write an exact implication question for THIS scenario."},
-    "needPayoff": {"reached": false, "example": null, "nextLevel": null},
-    "coachNote": "1-2 sentences on their questioning pattern and what level they need to reach."
-  },
-  "goodToGreat": [
-    {"phase": "Opening", "current": "Exact line they said", "improved": "Sharper version with the same intent", "why": "One sentence on why this version works better."}
-  ],
-  "topWin": {"quote": "Best verbatim line they said", "why": "Specific reason why this worked in context.", "howToRepeat": "The exact mechanic — how to do this deliberately every time."},
-  "topMiss": {"candidateLine": "Verbatim signal from the candidate", "recruiterLine": "What the recruiter said in response", "betterResponse": "Exact script — framed as opportunity, not criticism."},
-  "nextAction": "One specific, actionable behaviour to focus on in the next call. Tied to what you saw in this transcript."
-}
-
-Replace every placeholder with real observations from the transcript.`;
-
-    try {
-      const raw = await callAPI(
-        [{role:'user', content: prompt}],
-        null,
-        {model:'claude-haiku-4-5', max_tokens:1200, temperature:0}
-      );
-
-      // Extract JSON from response
-      let parsed;
-      const first = raw.indexOf('{');
-      const last  = raw.lastIndexOf('}');
-      if(first === -1 || last === -1) throw new Error('No JSON in response. Please try again.');
-
-      try {
-        parsed = JSON.parse(raw.slice(first, last+1));
-      } catch(e) {
-        // Strip trailing incomplete fields
-        let attempt = raw.slice(first, last+1);
-        attempt = attempt.replace(/,\s*"[^"]*"\s*:\s*[^,}\]]*$/, '') + '}';
-        try { parsed = JSON.parse(attempt); }
-        catch(e2) { throw new Error('Response was cut off. Try a shorter transcript.'); }
-      }
-
-      parsed.verdict    = parsed.verdict    || 'Consistent';
-      parsed.behaviours = parsed.behaviours || {};
-      parsed.funnel     = parsed.funnel     || {};
-      parsed.goodToGreat= parsed.goodToGreat|| [];
-      parsed.talkRatio  = parsed.talkRatio  || {recruiter:recPct, candidate:candPct, verdict:'', note:''};
-
-      // Save progress snapshot to localStorage
-      try {
-        const existing = JSON.parse(localStorage.getItem('heyscott_reviews_v1')||'[]');
-        existing.push({
-          savedAt: new Date().toISOString(),
-          verdict: parsed.verdict,
-          wordCount: words.length,
-          deepestFunnelLevel: parsed.funnel?.deepestLevel || 'unknown',
-          behavioursPresent: Object.values(parsed.behaviours).flat().filter(b=>b.status==='present').length,
-          behavioursTotal: Object.values(parsed.behaviours).flat().filter(b=>!['n/a','unknown'].includes(b.status)).length,
-        });
-        localStorage.setItem('heyscott_reviews_v1', JSON.stringify(existing.slice(-20)));
-      } catch(e){}
-
-      setResult(parsed);
-      setResultTab('behaviours');
-    } catch(e) {
-      setAnalysisError(e.message || 'Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // ── ASK SCOTT — live coaching ──
   const sendCoachMessage = async (text) => {
@@ -5249,8 +5391,6 @@ RESPONSE STRUCTURE:
     "Candidate went cold after my first pitch — how do I recover?",
   ];
 
-  const sectionColor = s => s>=75?{c:C.green,bg:C.greenBg,b:"#BBF7D0"}:s>=60?{c:C.amber,bg:"#FEF3C7",b:"#FDE68A"}:{c:C.red,bg:"#FEE2E2",b:"#FECACA"};
-
   return(
     <Shell page="analysis" go={go} userRole="learner">
       <div style={{maxWidth:820,padding:isMobile?"0 4px":0}}>
@@ -5258,435 +5398,9 @@ RESPONSE STRUCTURE:
         {/* Page header */}
         <div style={{marginBottom:20}}>
           <h1 style={{fontSize:22,fontWeight:800,color:C.navy,marginBottom:4}}>Ask Scott</h1>
-          <p style={{color:C.muted,fontSize:13}}>Review a call for scored feedback, or ask Scott a question for live coaching.</p>
+          <p style={{color:C.muted,fontSize:13}}>Ask Scott anything — what to say, how to handle an objection, why a call went cold.</p>
         </div>
 
-        {/* Section tabs */}
-        <div style={{display:"flex",gap:4,marginBottom:24,background:C.white,borderRadius:5,padding:4,border:`1px solid ${C.border}`,width:"fit-content"}}>
-          {[{id:"review",label:"📋 Review a call"},{id:"ask",label:"💬 Ask Scott"}].map(t=>(
-            <button key={t.id} onClick={()=>setActiveSection(t.id)}
-              style={{padding:"9px 20px",borderRadius:9,border:"none",cursor:"pointer",fontSize:13,fontWeight:600,background:activeSection===t.id?C.navy:"none",color:activeSection===t.id?"#fff":C.muted,transition:"all 0.15s"}}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* ══ REVIEW A CALL ══ */}
-        {activeSection==="review" && (
-          <div>
-            {/* API connection test + error banner */}
-            {(()=>{
-              const [testState, setTestState] = window._apiTestState || [null, ()=>{}];
-              return null; // inline test below
-            })()}
-            {analysisError && (
-              <div style={{background:"#FEF2F2",borderRadius:5,border:"1px solid #FECACA",padding:"12px 16px",marginBottom:14,display:"flex",gap:10,alignItems:"flex-start"}}>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:700,color:"#991B1B",fontSize:13,marginBottom:3}}>⚠ Analysis didn't complete</div>
-                  <div style={{fontSize:12,color:"#7F1D1D",lineHeight:1.5}}>{analysisError}</div>
-                </div>
-                <button onClick={()=>{setAnalysisError(null); setLoading(false);}}
-                  style={{background:"none",border:"1px solid #FECACA",borderRadius:6,padding:"4px 10px",fontSize:11,color:"#991B1B",cursor:"pointer",flexShrink:0}}>✕</button>
-              </div>
-            )}
-            {/* Paste / upload area — always shown, collapses transcript on analyse */}
-            <div style={{background:C.white,borderRadius:5,border:`1px solid ${C.border}`,padding:20,marginBottom:16}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:showTranscript?10:0}}>
-                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1.5}}>Paste your transcript</div>
-                <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                  {transcript&&<div style={{fontSize:11,color:C.muted}}>~{transcript.split(/\s+/).filter(Boolean).length} words</div>}
-                  {transcript&&(
-                    <button onClick={()=>setShowTranscript(s=>!s)}
-                      style={{background:"none",border:`1px solid ${C.border}`,borderRadius:999,padding:"3px 10px",fontSize:11,color:C.muted,cursor:"pointer"}}>
-                      {showTranscript?"Hide":"Show"} transcript
-                    </button>
-                  )}
-                </div>
-              </div>
-              {showTranscript&&(
-                <>
-                  <textarea value={transcript} onChange={e=>setTranscript(e.target.value)} rows={14}
-                    placeholder={"Recruiter: Hi Marcus, is this a good time?\nMarcus: Yeah who's this?\nRecruiter: It's Alex from Pinnacle — I'm calling because...\nMarcus: Look I'm pretty busy right now.\n\nPaste your full call transcript here.\nFormat each line as: Speaker: what they said"}
-                    style={{width:"100%",fontSize:12,color:C.text,background:C.bg,border:`1px solid ${C.border}`,borderRadius:5,padding:"12px 14px",outline:"none",resize:"vertical",fontFamily:"monospace",lineHeight:1.7,boxSizing:"border-box"}}/>
-                  <div style={{marginTop:10,display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                    <label style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:999,padding:"7px 16px",fontSize:12,fontWeight:600,color:C.muted,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
-                      📄 Upload .txt file
-                      <input type="file" accept=".txt,.md" style={{display:"none"}}
-                        onChange={e=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=ev=>{setTranscript(ev.target.result);setShowTranscript(true);}; r.readAsText(f); e.target.value=""; }}/>
-                    </label>
-                    <div style={{fontSize:11,color:C.muted}}>Have audio? Use <strong>Otter.ai</strong> or <strong>Rev</strong> to transcribe it first, then paste here.</div>
-                  </div>
-                </>
-              )}
-              {!showTranscript&&transcript&&(
-                <div style={{fontSize:12,color:C.muted,fontStyle:"italic",paddingTop:4}}>
-                  Transcript ready — {transcript.split(/\s+/).filter(Boolean).length} words
-                </div>
-              )}
-            </div>
-
-            {/* Analyse button — always visible when transcript present and not loading */}
-            {!loading && !result && (
-              <>
-                <button onClick={()=>{setAnalysisError(null); runAnalysis();}} disabled={!transcript.trim()}
-                  style={{width:"100%",background:transcript.trim()?C.purple:C.border,color:transcript.trim()?"#fff":C.muted,border:"none",borderRadius:999,padding:"14px",fontWeight:800,fontSize:14,cursor:transcript.trim()?"pointer":"not-allowed",transition:"all 0.2s",marginBottom:16}}>
-                  ✨ Analyse this call
-                </button>
-                {/* What gets scored */}
-                <div style={{background:C.lavPale,borderRadius:14,border:`1px solid ${C.lavSoft}`,padding:"14px 18px"}}>
-                  <div style={{fontSize:11,fontWeight:700,color:C.purple,marginBottom:8}}>What gets scored</div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
-                    {["Opening & Permission","Discovery & Questioning","Questioning Funnel","Rapport & Tone","Objection Handling","Commitment & Close","Talk Ratio","Listening & Signals"].map((s,i)=>(
-                      <div key={i} style={{fontSize:11,color:C.purple,display:"flex",gap:5,alignItems:"center"}}>
-                        <span style={{color:C.lavSoft,fontSize:13}}>→</span>{s}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Re-analyse button when result already showing */}
-            {!loading && result && transcript && (
-              <button onClick={()=>{setAnalysisError(null); runAnalysis();}}
-                style={{width:"100%",background:"none",border:`2px solid ${C.purple}`,color:C.purple,borderRadius:999,padding:"11px",fontWeight:700,fontSize:13,cursor:"pointer",marginBottom:16}}>
-                ↺ Re-analyse
-              </button>
-            )}
-
-            {/* ── LOADING — inline below button ── */}
-            {loading && (
-              <div style={{background:C.white,borderRadius:5,border:`1px solid ${C.border}`,padding:48,textAlign:"center",marginBottom:16}}>
-                <div style={{display:"flex",gap:5,justifyContent:"center",marginBottom:14}}>
-                  {[0,1,2].map(i=><div key={i} style={{width:10,height:10,borderRadius:"50%",background:C.purple,animation:"bounce 1s infinite",animationDelay:`${i*0.2}s`}}/>)}
-                </div>
-                <div style={{fontSize:14,fontWeight:600,color:C.navy,marginBottom:4}}>{stages[stageIdx]}</div>
-                <div style={{fontSize:12,color:C.muted}}>Analysing behaviours and questioning depth…</div>
-              </div>
-            )}
-
-            {/* Error display */}
-            {!loading && analysisError && (
-              <div style={{background:"#FEF2F2",borderRadius:14,border:"1px solid #FECACA",padding:"16px 20px",marginBottom:16}}>
-                <div style={{fontWeight:700,color:C.red,marginBottom:6,fontSize:14}}>⚠ Analysis didn't complete</div>
-                <div style={{fontSize:13,color:"#7F1D1D",lineHeight:1.6,marginBottom:12}}>{analysisError}</div>
-                <button onClick={()=>{setAnalysisError(null); runAnalysis();}}
-                  style={{background:C.red,color:"#fff",border:"none",borderRadius:999,padding:"8px 18px",fontSize:12,fontWeight:700,cursor:"pointer",marginRight:8}}>
-                  Try again
-                </button>
-                <button onClick={()=>setAnalysisError(null)}
-                  style={{background:"none",border:`1px solid #FECACA`,borderRadius:999,padding:"8px 18px",fontSize:12,fontWeight:600,color:C.red,cursor:"pointer"}}>
-                  Dismiss
-                </button>
-              </div>
-            )}
-
-            {/* ── RESULTS — directly below button ── */}
-            {result && (
-              <div style={{animation:"fadeUp 0.3s ease both",marginTop:4}}>
-
-                {/* Progress panel — shows after 2+ reviews */}
-                {(()=>{
-                  try {
-                    const reviews = JSON.parse(localStorage.getItem("heyscott_reviews_v1")||"[]");
-                    if(reviews.length < 2) return null;
-                    const last5    = reviews.slice(-5);
-                    const verdictOrder = {"Developing":1,"Consistent":2,"Advanced":3};
-                    const trend = last5.map(r=>verdictOrder[r.verdict]||1);
-                    const improving = trend.length >= 2 && trend[trend.length-1] >= trend[trend.length-2];
-                    const funnelProgress = last5.map(r=>{
-                      const d={"none":0,"situational":1,"problem":2,"implication":3,"need-payoff":4};
-                      return d[r.deepestFunnelLevel]||0;
-                    });
-                    const funnelImproving = funnelProgress[funnelProgress.length-1] >= funnelProgress[0];
-                    const verdictLabels = {1:"Developing",2:"Consistent",3:"Advanced"};
-                    const avgBehaviours = last5.length > 0
-                      ? Math.round(last5.reduce((a,r)=>a+(r.behavioursPresent/Math.max(r.behavioursTotal,1)*100),0)/last5.length)
-                      : 0;
-                    return(
-                      <div style={{background:C.white,borderRadius:14,border:`1px solid ${C.border}`,padding:"14px 18px",marginBottom:14}}>
-                        <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Your progress — last {last5.length} reviews</div>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:10}}>
-                          <div>
-                            <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Verdict trend</div>
-                            <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                              {trend.map((v,i)=>(
-                                <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                                  <div style={{width:8,height:8,borderRadius:"50%",background:v===3?C.green:v===2?C.purple:C.amber}}/>
-                                  {i<trend.length-1&&<div style={{width:16,height:1,background:C.border,marginLeft:8}}/>}
-                                </div>
-                              ))}
-                              <span style={{fontSize:11,color:improving?C.green:C.muted,fontWeight:600,marginLeft:4}}>{improving?"↑ improving":"→ steady"}</span>
-                            </div>
-                          </div>
-                          <div>
-                            <div style={{fontSize:11,color:C.muted,marginBottom:4}}>Behaviours present (avg)</div>
-                            <div style={{height:6,background:C.bg,borderRadius:999,overflow:"hidden",marginBottom:3}}>
-                              <div style={{height:"100%",width:`${avgBehaviours}%`,background:avgBehaviours>=70?C.green:avgBehaviours>=50?C.purple:C.amber,borderRadius:999,transition:"width 0.5s"}}/>
-                            </div>
-                            <div style={{fontSize:10,color:C.muted}}>{avgBehaviours}% of observed behaviours</div>
-                          </div>
-                        </div>
-                        <div style={{display:"flex",gap:4,alignItems:"center",fontSize:11,color:C.muted}}>
-                          <span>Funnel depth:</span>
-                          {funnelProgress.map((v,i)=>{
-                            const labels=["–","S","P","I","N"];
-                            const col=v>=3?C.green:v>=2?C.purple:C.amber;
-                            return(<span key={i} style={{background:col,color:"#fff",borderRadius:4,padding:"1px 5px",fontSize:10,fontWeight:700}}>{labels[v]||"–"}</span>);
-                          })}
-                          <span style={{marginLeft:4,color:funnelImproving?C.green:C.muted}}>{funnelImproving?"↑ going deeper":"→ consistent level"}</span>
-                        </div>
-                        {reviews.length < 5 && <div style={{fontSize:10,color:C.muted,marginTop:8}}>{5-reviews.length} more review{5-reviews.length!==1?"s":""} until full progress picture unlocks</div>}
-                      </div>
-                    );
-                  } catch(e){ return null; }
-                })()}
-
-                {/* ── HEADER ── */}
-                <div style={{background:C.navy,borderRadius:20,padding:"20px 24px",marginBottom:16,display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
-                  <div style={{flex:1,minWidth:200}}>
-                    <div style={{marginBottom:8}}>
-                      <span style={{
-                        background:result.verdict==="Advanced"?C.greenBg:result.verdict==="Consistent"?C.lavPale:"#FEF3C7",
-                        color:result.verdict==="Advanced"?C.green:result.verdict==="Consistent"?C.purple:"#92400E",
-                        borderRadius:999,padding:"4px 16px",fontSize:13,fontWeight:800,
-                        border:"1px solid",borderColor:result.verdict==="Advanced"?"#BBF7D0":result.verdict==="Consistent"?C.lavSoft:"#FDE68A"
-                      }}>{result.verdict}</span>
-                    </div>
-                    <p style={{fontSize:13,color:"rgba(255,255,255,0.85)",lineHeight:1.7,margin:0}}>{result.callSummary}</p>
-                  </div>
-                  {result.talkRatio&&(
-                    <div style={{minWidth:130}}>
-                      <div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Talk ratio</div>
-                      <div style={{height:10,borderRadius:999,overflow:"hidden",background:"rgba(255,255,255,0.12)",marginBottom:5}}>
-                        <div style={{height:"100%",width:`${result.talkRatio.recruiter}%`,background:result.talkRatio.recruiter>65?"#EF4444":result.talkRatio.recruiter>50?"#F59E0B":"#22C55E",borderRadius:999,transition:"width 0.5s"}}/>
-                      </div>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"rgba(255,255,255,0.5)"}}>
-                        <span>You {result.talkRatio.recruiter}%</span><span>Them {result.talkRatio.candidate}%</span>
-                      </div>
-                      {result.talkRatio.note&&<div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginTop:4,lineHeight:1.4}}>{result.talkRatio.note}</div>}
-                    </div>
-                  )}
-                </div>
-
-                {/* ── TABS ── */}
-                <div style={{display:"flex",gap:3,marginBottom:16,background:C.white,borderRadius:5,padding:4,border:`1px solid ${C.border}`,width:"fit-content",overflowX:"auto"}}>
-                  {[{id:"behaviours",label:"Behaviours"},{id:"funnel",label:"Questioning Funnel"},{id:"scripts",label:"Good → Great"},{id:"transcript",label:"Transcript"}].map(t=>(
-                    <button key={t.id} onClick={()=>setResultTab(t.id)}
-                      style={{padding:"7px 14px",borderRadius:9,border:"none",cursor:"pointer",fontSize:12,fontWeight:600,whiteSpace:"nowrap",background:resultTab===t.id?C.navy:"none",color:resultTab===t.id?"#fff":C.muted,transition:"all 0.15s"}}>
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* ── TAB: BEHAVIOURS ── */}
-                {resultTab==="behaviours" && (()=>{
-                  const bh = result.behaviours || {};
-                  const sections = [
-                    {key:"opening",  label:"Opening & Permission", icon:"🎯"},
-                    {key:"discovery",label:"Discovery",            icon:"🔍"},
-                    {key:"listening",label:"Listening & Signals",  icon:"👂"},
-                    {key:"objections",label:"Objection Handling",  icon:"🛡"},
-                    {key:"close",    label:"Commitment & Close",   icon:"🤝"},
-                  ];
-                  const statusStyle = s => s==="present"?{bg:"#F0FDF4",c:C.green,b:"#BBF7D0",icon:"✓"}:s==="partial"?{bg:"#FFFBEB",c:"#92400E",b:"#FDE68A",icon:"◑"}:s==="n/a"?{bg:C.bg,c:C.muted,b:C.border,icon:"—"}:{bg:"#FEF2F2",c:C.red,b:"#FECACA",icon:"✗"};
-                  // Summary counts
-                  const allBehaviours = Object.values(bh).flat();
-                  const present  = allBehaviours.filter(b=>b.status==="present").length;
-                  const partial  = allBehaviours.filter(b=>b.status==="partial").length;
-                  const absent   = allBehaviours.filter(b=>b.status==="absent").length;
-                  const na       = allBehaviours.filter(b=>b.status==="n/a"||b.status==="unknown").length;
-                  const total    = present + partial + absent;
-                  return(
-                    <div style={{animation:"fadeUp 0.3s ease both"}}>
-                      {/* Summary strip */}
-                      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:10,marginBottom:16}}>
-                        {[{label:"Behaviours present",val:present,col:C.green,bg:C.greenBg},{label:"Partial",val:partial,col:"#92400E",bg:"#FEF3C7"},{label:"Not yet present",val:absent,col:C.red,bg:"#FEF2F2"}].map((s,i)=>(
-                          <div key={i} style={{background:s.bg,borderRadius:5,padding:"12px 14px",textAlign:"center"}}>
-                            <div style={{fontSize:26,fontWeight:900,color:s.col,lineHeight:1}}>{s.val}</div>
-                            <div style={{fontSize:10,color:s.col,fontWeight:600,marginTop:3}}>{s.label}</div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Behaviour sections */}
-                      {sections.map(sec=>{
-                        const items = bh[sec.key]||[];
-                        if(!items.length) return null;
-                        const secPresent = items.filter(b=>b.status==="present").length;
-                        return(
-                          <div key={sec.key} style={{background:C.white,borderRadius:14,border:`1px solid ${C.border}`,marginBottom:12,overflow:"hidden"}}>
-                            <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 18px",borderBottom:`1px solid ${C.bg}`,background:C.bg}}>
-                              <span style={{fontSize:18}}>{sec.icon}</span>
-                              <div style={{fontWeight:800,color:C.navy,fontSize:13,flex:1}}>{sec.label}</div>
-                              <div style={{fontSize:11,color:C.muted}}>{secPresent}/{items.filter(b=>b.status!=="n/a"&&b.status!=="unknown").length} present</div>
-                            </div>
-                            <div style={{padding:"4px 0"}}>
-                              {items.map((b,i)=>{
-                                const st = statusStyle(b.status);
-                                return(
-                                  <div key={i} style={{display:"flex",gap:12,alignItems:"flex-start",padding:"10px 18px",borderBottom:i<items.length-1?`1px solid ${C.bg}`:"none"}}>
-                                    <div style={{width:22,height:22,borderRadius:6,background:st.bg,border:`1px solid ${st.b}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:st.c,flexShrink:0,marginTop:1}}>{st.icon}</div>
-                                    <div style={{flex:1}}>
-                                      <div style={{fontSize:12,fontWeight:600,color:C.navy,marginBottom:b.evidence||b.note?4:0}}>{b.behaviour}</div>
-                                      {b.evidence&&<div style={{fontSize:11,color:C.muted,fontStyle:"italic",marginBottom:3}}>"{b.evidence}"</div>}
-                                      {b.note&&<div style={{fontSize:11,color:b.status==="absent"?C.purple:C.muted,lineHeight:1.5,fontWeight:b.status==="absent"?600:400}}>{b.note}</div>}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {/* Top win + miss */}
-                      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:12,marginTop:4}}>
-                        {result.topWin&&(
-                          <div style={{background:"#F0FDF4",borderRadius:14,border:"1px solid #BBF7D0",padding:"14px 16px"}}>
-                            <div style={{fontSize:9,fontWeight:800,color:C.green,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>✓ Best moment</div>
-                            <div style={{background:"rgba(255,255,255,0.7)",borderRadius:5,padding:"7px 11px",border:"1px solid #BBF7D0",marginBottom:8,fontSize:12,color:"#14532D",fontStyle:"italic",fontWeight:600}}>"{result.topWin.quote}"</div>
-                            <p style={{fontSize:11,color:"#14532D",lineHeight:1.55,margin:"0 0 6px"}}>{result.topWin.why}</p>
-                            <div style={{background:"rgba(255,255,255,0.5)",borderRadius:6,padding:"5px 9px",fontSize:10,color:"#166534"}}><strong>Do this deliberately: </strong>{result.topWin.howToRepeat}</div>
-                          </div>
-                        )}
-                        {result.topMiss&&(
-                          <div style={{background:"#FFF7ED",borderRadius:14,border:"1px solid #FED7AA",padding:"14px 16px"}}>
-                            <div style={{fontSize:9,fontWeight:800,color:"#C2410C",textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>⚡ Key opportunity</div>
-                            {result.topMiss.candidateLine&&<div style={{background:"rgba(255,255,255,0.6)",borderRadius:5,padding:"6px 10px",border:"1px solid #FED7AA",marginBottom:6,fontSize:11,color:"#7C2D12",fontStyle:"italic"}}>They said: "{result.topMiss.candidateLine}"</div>}
-                            <div style={{background:"#F0FDF4",borderRadius:5,padding:"6px 10px",border:"1px solid #BBF7D0",fontSize:12,color:"#14532D",fontStyle:"italic",fontWeight:600}}>Try: "{result.topMiss.betterResponse}"</div>
-                          </div>
-                        )}
-                      </div>
-
-                      {result.nextAction&&(
-                        <div style={{background:C.navy,borderRadius:14,padding:"14px 18px",display:"flex",gap:12,alignItems:"flex-start",marginTop:12}}>
-                          <Av ini="SC" col={C.lavSoft} sz={32}/>
-                          <div><div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:4}}>Work on next</div><p style={{fontSize:13,color:"rgba(255,255,255,0.9)",lineHeight:1.65,margin:0}}>{result.nextAction}</p></div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* ── TAB: FUNNEL ── */}
-                {resultTab==="funnel" && result.funnel && (()=>{
-                  const f = result.funnel;
-                  const levels = [
-                    {key:"situational",label:"Situational",desc:"What does their current situation look like?",emoji:"1️⃣"},
-                    {key:"problem",    label:"Problem",    desc:"What's frustrating or missing?",              emoji:"2️⃣"},
-                    {key:"implication",label:"Implication",desc:"What does staying still cost them?",          emoji:"3️⃣"},
-                    {key:"needPayoff", label:"Need-Payoff",desc:"What would better look like for them?",       emoji:"4️⃣"},
-                  ];
-                  const deepestOrder = ["none","situational","problem","implication","need-payoff"];
-                  const deepestIdx   = deepestOrder.indexOf(f.deepestLevel);
-                  return(
-                    <div style={{animation:"fadeUp 0.3s ease both",display:"flex",flexDirection:"column",gap:12}}>
-                      <div style={{background:C.lavPale,borderRadius:14,border:`1px solid ${C.lavSoft}`,padding:"12px 16px",fontSize:12,color:C.purple,lineHeight:1.6}}>
-                        The questioning funnel moves from broad context to specific motivation. Each level unlocks a deeper conversation. Reaching implication or need-payoff is where candidates start to sell themselves.
-                      </div>
-
-                      {/* Funnel visual */}
-                      <div style={{background:C.white,borderRadius:5,border:`1px solid ${C.border}`,padding:"20px 22px"}}>
-                        <div style={{fontSize:12,fontWeight:700,color:C.navy,marginBottom:16}}>Deepest level reached: <span style={{color:deepestIdx>=3?C.green:deepestIdx>=2?C.amber:C.red,textTransform:"capitalize"}}>{f.deepestLevel==="none"?"None — no questions asked":f.deepestLevel}</span></div>
-                        {levels.map((level,i)=>{
-                          const data    = f[level.key];
-                          const reached = data?.reached;
-                          const isNext  = !reached && levels[i-1] && f[levels[i-1].key]?.reached;
-                          const col     = reached?C.green:isNext?"#92400E":C.muted;
-                          const bg      = reached?"#F0FDF4":isNext?"#FFF7ED":"#F8F8F8";
-                          const bdr     = reached?"#BBF7D0":isNext?"#FED7AA":C.border;
-                          const width   = `${100 - i*8}%`;
-                          return(
-                            <div key={level.key} style={{margin:"0 auto",width,marginBottom:8,transition:"width 0.4s"}}>
-                              <div style={{background:bg,border:`2px solid ${bdr}`,borderRadius:5,padding:"12px 16px",position:"relative"}}>
-                                <div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:data?.example?8:0}}>
-                                  <span style={{fontSize:18,flexShrink:0}}>{level.emoji}</span>
-                                  <div style={{flex:1}}>
-                                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
-                                      <span style={{fontWeight:800,color:C.navy,fontSize:13}}>{level.label}</span>
-                                      <span style={{background:reached?"#F0FDF4":isNext?"#FFF7ED":"#F3F4F6",color:col,borderRadius:999,padding:"2px 8px",fontSize:10,fontWeight:700,border:`1px solid ${bdr}`}}>{reached?"✓ Reached":isNext?"← Next level":"Not reached"}</span>
-                                    </div>
-                                    <div style={{fontSize:11,color:C.muted}}>{level.desc}</div>
-                                  </div>
-                                </div>
-                                {data?.example&&<div style={{background:"rgba(255,255,255,0.7)",borderRadius:5,padding:"7px 11px",fontSize:11,color:"#14532D",fontStyle:"italic",marginBottom:data.nextLevel?8:0}}>"{data.example}"</div>}
-                                {isNext&&data?.nextLevel&&(
-                                  <div style={{background:C.lavPale,borderRadius:5,padding:"8px 12px",border:`1px solid ${C.lavSoft}`}}>
-                                    <div style={{fontSize:9,fontWeight:700,color:C.purple,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Try this next</div>
-                                    <div style={{fontSize:12,color:C.navy,fontStyle:"italic",fontWeight:600}}>"{data.nextLevel}"</div>
-                                  </div>
-                                )}
-                                {reached&&data?.nextLevel&&(
-                                  <div style={{background:"rgba(255,255,255,0.5)",borderRadius:5,padding:"6px 10px",border:"1px solid #BBF7D0"}}>
-                                    <div style={{fontSize:9,fontWeight:700,color:C.green,marginBottom:3,textTransform:"uppercase",letterSpacing:1}}>To go further</div>
-                                    <div style={{fontSize:11,color:"#166534",fontStyle:"italic"}}>"{data.nextLevel}"</div>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {f.coachNote&&(
-                        <div style={{background:C.navy,borderRadius:14,padding:"14px 18px",display:"flex",gap:12,alignItems:"flex-start"}}>
-                          <Av ini="SC" col={C.lavSoft} sz={32}/>
-                          <div><div style={{fontSize:9,fontWeight:700,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:4}}>Questioning pattern</div><p style={{fontSize:13,color:"rgba(255,255,255,0.9)",lineHeight:1.65,margin:0}}>{f.coachNote}</p></div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* ── TAB: GOOD → GREAT ── */}
-                {resultTab==="scripts" && (
-                  <div style={{animation:"fadeUp 0.3s ease both",display:"flex",flexDirection:"column",gap:12}}>
-                    <div style={{background:C.lavPale,borderRadius:5,border:`1px solid ${C.lavSoft}`,padding:"10px 14px",fontSize:12,color:C.purple,lineHeight:1.6}}>
-                      These are the exact upgrades for moments that were already working. Use them on your next call — they're ready to go.
-                    </div>
-                    {(result.goodToGreat||[]).length===0&&(
-                      <div style={{background:C.white,borderRadius:14,border:`1px solid ${C.border}`,padding:24,textAlign:"center",color:C.muted,fontSize:13}}>Good → Great scripts will appear after analysis.</div>
-                    )}
-                    {(result.goodToGreat||[]).map((g,i)=>(
-                      <div key={i} style={{background:C.white,borderRadius:14,border:`1px solid ${C.border}`,padding:"16px 20px"}}>
-                        <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:12}}>{g.phase}</div>
-                        <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:12,alignItems:"start",marginBottom:g.why?12:0}}>
-                          <div>
-                            <div style={{fontSize:9,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Good — what you said</div>
-                            <div style={{background:C.bg,borderRadius:5,padding:"10px 13px",fontSize:12,color:C.text,fontStyle:"italic",lineHeight:1.55}}>"{g.current}"</div>
-                          </div>
-                          <div style={{fontSize:20,color:C.purple,paddingTop:22}}>→</div>
-                          <div>
-                            <div style={{fontSize:9,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>⚡ Great — say this</div>
-                            <div style={{background:C.lavPale,borderRadius:5,padding:"10px 13px",border:`1px solid ${C.lavSoft}`,fontSize:12,color:C.navy,fontStyle:"italic",fontWeight:600,lineHeight:1.55}}>"{g.improved}"</div>
-                          </div>
-                        </div>
-                        {g.why&&<div style={{fontSize:11,color:C.muted,lineHeight:1.5,paddingTop:10,borderTop:`1px solid ${C.bg}`}}>{g.why}</div>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* ── TAB: TRANSCRIPT ── */}
-                {resultTab==="transcript" && (
-                  <div style={{background:C.white,borderRadius:14,border:`1px solid ${C.border}`,padding:18}}>
-                    <pre style={{fontFamily:"monospace",fontSize:12,color:C.text,lineHeight:1.8,whiteSpace:"pre-wrap",margin:0}}>{transcript}</pre>
-                  </div>
-                )}
-
-                <button onClick={()=>{setResult(null);setTranscript("");setShowTranscript(true);setAnalysisError(null);}}
-                  style={{marginTop:18,background:"none",border:`1px solid ${C.border}`,borderRadius:999,padding:"9px 20px",fontSize:13,color:C.muted,cursor:"pointer"}}>
-                  ← Review another call
-                </button>
-
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ══ ASK SCOTT ══ */}
-        {activeSection==="ask" && (
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             {/* Context strip */}
             <div style={{background:C.lavPale,borderRadius:14,border:`1px solid ${C.lavSoft}`,padding:"12px 16px",display:"flex",gap:10,alignItems:"flex-start"}}>
@@ -5757,7 +5471,6 @@ RESPONSE STRUCTURE:
               </button>
             )}
           </div>
-        )}
       </div>
     </Shell>
   );
@@ -6141,6 +5854,10 @@ function ManagerDashboard({go, userId=null}){
   const [newMember, setNewMember] = useState({name:"",role:"",billings:"",focus:""});
   const [selLearner, setSelLearner] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
+  const [companyId, setCompanyId] = useState(()=>{ const p=loadProfile(); return p?.company_id||null; });
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteSent, setInviteSent]   = useState(false);
+  const inviteLink = companyId ? `${window.location.origin}?company=${companyId}` : null;
 
   // Insight module state
   const [briefing, setBriefing]       = useState(null);
@@ -6167,8 +5884,10 @@ function ManagerDashboard({go, userId=null}){
     })();
   },[]);
 
-  // Use MOCK_TEAM for analytics if real Supabase data is empty
-  const analyticsTeam = MOCK_TEAM;
+  // Use real team data only when it has analytics fields; otherwise show MOCK_TEAM as sample
+  const hasRichData = teamData.length > 0 && teamData[0]?.bh;
+  const usingSampleData = !hasRichData;
+  const analyticsTeam = hasRichData ? teamData : MOCK_TEAM;
 
   const refreshInbox = async () => {
     const inbox = await sbLoadManagerInbox();
@@ -6280,6 +5999,14 @@ Regressing: ${analyticsTeam.filter(m=>m.status==="regressing").map(m=>`${m.name}
         ══════════════════════════════════════════ */}
         {activeTab==="overview" && (
           <div style={{animation:"fadeUp 0.3s ease both",display:"flex",flexDirection:"column",gap:14}}>
+
+            {/* Sample data notice */}
+            {usingSampleData && (
+              <div style={{background:"#FEF3C7",borderRadius:10,border:"1px solid #FDE68A",padding:"10px 16px",display:"flex",gap:10,alignItems:"center"}}>
+                <span style={{fontSize:16}}>📊</span>
+                <span style={{fontSize:12,color:"#92400E"}}>Showing sample data. Invite your team to see their real analytics here.</span>
+              </div>
+            )}
 
             {/* Quick stats row */}
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
@@ -6898,6 +6625,45 @@ Regressing: ${analyticsTeam.filter(m=>m.status==="regressing").map(m=>`${m.name}
         ══════════════════════════════════════════ */}
         {activeTab==="settings" && (
           <div style={{animation:"fadeUp 0.3s ease both",display:"flex",flexDirection:"column",gap:14}}>
+
+            {/* Team invite section */}
+            <div style={{background:C.white,borderRadius:14,border:`1px solid ${C.border}`,padding:20}}>
+              <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:4}}>Invite team members</div>
+              <p style={{fontSize:12,color:C.muted,marginBottom:14}}>Share the link below or send an email invite. New members will be prompted to set up their profile.</p>
+
+              {inviteLink ? (
+                <>
+                  <div style={{fontSize:11,fontWeight:600,color:C.muted,marginBottom:6}}>Shareable invite link</div>
+                  <div style={{display:"flex",gap:8,marginBottom:16}}>
+                    <div style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",fontSize:11,color:C.muted,wordBreak:"break-all",lineHeight:1.4}}>{inviteLink}</div>
+                    <button onClick={()=>navigator.clipboard?.writeText(inviteLink)}
+                      style={{background:C.purple,color:"#fff",border:"none",borderRadius:8,padding:"9px 14px",fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0,alignSelf:"flex-start"}}>Copy</button>
+                  </div>
+                  <div style={{fontSize:11,fontWeight:600,color:C.muted,marginBottom:6}}>Or invite by email</div>
+                  <div style={{display:"flex",gap:8}}>
+                    <input type="email" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)}
+                      placeholder="recruiter@company.com"
+                      style={{flex:1,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",fontSize:13,color:C.text,outline:"none",background:C.bg,boxSizing:"border-box"}}/>
+                    <button onClick={async()=>{
+                      if(!inviteEmail.trim()) return;
+                      try {
+                        await fetch("/api/invite",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:inviteEmail.trim(),companyId})});
+                        setInviteSent(true); setInviteEmail("");
+                        setTimeout(()=>setInviteSent(false),3000);
+                      } catch(e){}
+                    }} disabled={!inviteEmail.trim()}
+                      style={{background:inviteEmail.trim()?C.purple:C.border,color:inviteEmail.trim()?"#fff":C.muted,border:"none",borderRadius:8,padding:"9px 14px",fontSize:12,fontWeight:600,cursor:inviteEmail.trim()?"pointer":"not-allowed",flexShrink:0}}>
+                      {inviteSent ? "Sent ✓" : "Send"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div style={{background:C.bg,borderRadius:8,padding:"12px 16px",fontSize:12,color:C.muted}}>
+                  Company ID not set. Sign up as a manager to generate your invite link.
+                </div>
+              )}
+            </div>
+
             <div style={{background:C.white,borderRadius:14,border:`1px solid ${C.border}`,padding:20}}>
               <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:12}}>Manager email</div>
               <div style={{display:"flex",gap:8}}>
@@ -7040,11 +6806,49 @@ export default function App(){
   const [userRole, setUserRole]   = useState("learner");
   const [currentMod, setCurrentMod] = useState(null);
   const [quickMode, setQuickMode] = useState(false);
+  const [user, setUser]           = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const go = (p, opts={}) => {
     if(opts.mod) setCurrentMod(opts.mod);
     if(opts.quick!==undefined) setQuickMode(opts.quick);
     setPage(p); window.scrollTo(0,0);
+  };
+
+  useEffect(()=>{
+    (async()=>{
+      const params = new URLSearchParams(window.location.search);
+      const inviteCompany = params.get('company');
+      if(inviteCompany){ go('invite'); setAuthLoading(false); return; }
+
+      try {
+        const u = await sb.getUser();
+        if(u){
+          setUser(u);
+          const p = await sbGetProfile(u.id);
+          if(p){
+            setProfile(p);
+            setUserRole(p.role || 'learner');
+            go(p.role==='manager' ? 'team' : 'learning');
+          } else {
+            go('setup');
+          }
+        } else {
+          go('landing');
+        }
+      } catch(e) {
+        go('landing');
+      }
+      setAuthLoading(false);
+    })();
+  }, []);
+
+  const handleAuth = async (u, role) => {
+    setUser(u);
+    setUserRole(role || 'learner');
+    const p = await sbGetProfile(u.id);
+    if(p){ setProfile(p); go(role==='manager' ? 'team' : 'learning'); }
+    else  { go('setup'); }
   };
 
   const handleProfileSave = (p) => {
@@ -7070,16 +6874,21 @@ export default function App(){
         ::-webkit-scrollbar-thumb{background:#E4DDD6;border-radius:999px}
       `}</style>
 
-      {page==="landing"    && <Landing go={go}/>}
-      {page==="onboarding" && <Onboarding go={go} setProfile={setProfile} setUserRole={setUserRole}/>}
-      {page==="setup"      && <ScottOnboarding onComplete={handleProfileSave} existingProfile={profile}/>}
-      {page==="learning"   && <Learning go={go} setMod={m=>setCurrentMod(m)} profile={profile}/>}
-      {page==="module"     && currentMod && <ModuleDetail mod={currentMod} go={go} quickMode={quickMode} profile={profile}/>}
-      {page==="analysis"   && <Analysis go={go} profile={profile}/>}
-      {page==="progress"   && <Progress go={go}/>}
-      {page==="analytics"  && <Analytics go={go}/>}
-      {page==="team"       && <ManagerDashboard go={go}/>}
-      {page==="admin"      && <AdminWizard go={go}/>}
+      {authLoading && <AuthLoadingScreen/>}
+      {!authLoading && page==="landing"    && <Landing go={go}/>}
+      {!authLoading && page==="login"      && <LoginPage go={go} onAuth={handleAuth}/>}
+      {!authLoading && page==="signup"     && <SignupPage go={go} onAuth={handleAuth}/>}
+      {!authLoading && page==="invite"     && <InvitePage go={go} onAuth={handleAuth}/>}
+      {!authLoading && page==="onboarding" && <Onboarding go={go} setProfile={setProfile} setUserRole={setUserRole}/>}
+      {!authLoading && page==="setup"      && <ScottOnboarding onComplete={handleProfileSave} existingProfile={profile}/>}
+      {!authLoading && page==="learning"   && <Learning go={go} setMod={m=>setCurrentMod(m)} profile={profile}/>}
+      {!authLoading && page==="module"     && currentMod && <ModuleDetail mod={currentMod} go={go} quickMode={quickMode} profile={profile}/>}
+      {!authLoading && page==="analysis"   && <Analysis go={go} profile={profile}/>}
+      {!authLoading && page==="progress"   && <Progress go={go}/>}
+      {!authLoading && page==="analytics"  && <Analytics go={go}/>}
+      {!authLoading && page==="team"       && userRole==="manager" && <ManagerDashboard go={go}/>}
+      {!authLoading && page==="team"       && userRole!=="manager" && <NavGuard go={go} to="learning"/>}
+      {!authLoading && page==="admin"      && <AdminWizard go={go}/>}
     </div>
   );
 }
