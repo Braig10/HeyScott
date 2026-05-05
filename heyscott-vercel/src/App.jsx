@@ -2119,7 +2119,7 @@ function LoginPage({go, onAuth}){
       const prof = await sbGetProfile(d.user.id);
       await onAuth(d.user, prof?.role || 'learner');
     } catch(e) {
-      setError("Connection issue — please try again.");
+      setError("Connection issue: " + (e?.message || String(e)));
     } finally { setLoading(false); }
   };
 
@@ -2196,7 +2196,7 @@ function SignupPage({go, onAuth}){
         await onAuth(d.user, role);
       }
     } catch(e) {
-      setError("Connection issue — please try again.");
+      setError("Error: " + (e?.message || String(e)));
     } finally { setLoading(false); }
   };
 
@@ -2330,7 +2330,7 @@ function InvitePage({go, onAuth}){
       await sbSaveProfile(d.user.id, { name: name.trim(), role: "learner", company_id: companyId, focus:"", billings:"", challenge:"", ownChallenge:"" });
       await onAuth(d.user, "learner");
     } catch(e) {
-      setError("Connection issue — please try again.");
+      setError("Error: " + (e?.message || String(e)));
     } finally { setLoading(false); }
   };
 
