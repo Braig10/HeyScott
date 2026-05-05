@@ -1489,9 +1489,10 @@ const ANALYSES = [
 /* ══════════════════════════════════════════════════════════════
    SUPABASE CONFIG
 ══════════════════════════════════════════════════════════════ */
-const SB_URL  = window._env?.SUPABASE_URL  || "";
-const SB_KEY  = window._env?.SUPABASE_ANON_KEY || "";
-const COMPANY_ID = window._env?.COMPANY_ID || "1775cff8-3650-4950-b578-88a24efcdf62";
+// Read lazily so window._env is populated by the time any method is called
+const getSbUrl = () => window._env?.SUPABASE_URL  || "";
+const getSbKey = () => window._env?.SUPABASE_ANON_KEY || "";
+const COMPANY_ID = "1775cff8-3650-4950-b578-88a24efcdf62";
 
 // Lightweight Supabase REST client (no npm package needed)
 const sb = {
@@ -1499,12 +1500,13 @@ const sb = {
   _userId: null,
 
   headers(extra={}) {
-    const h = { "Content-Type": "application/json", "apikey": SB_KEY, "Authorization": `Bearer ${this._token || SB_KEY}` };
+    const key = getSbKey();
+    const h = { "Content-Type": "application/json", "apikey": key, "Authorization": `Bearer ${this._token || key}` };
     return { ...h, ...extra };
   },
 
   async from(table) {
-    const base = `${SB_URL}/rest/v1/${table}`;
+    const base = `${getSbUrl()}/rest/v1/${table}`;
     const hdrs = this.headers({ "Prefer": "return=representation" });
     const ft = (url, opts={}) => {
       const c = new AbortController();
@@ -1536,7 +1538,7 @@ const sb = {
 
   async signUp(email, password, meta={}) {
     const c=new AbortController(); setTimeout(()=>c.abort(),5000);
-    const r = await fetch(`${SB_URL}/auth/v1/signup`, {
+    const r = await fetch(`${getSbUrl()}/auth/v1/signup`, {
       method:"POST", headers: this.headers(),
       body: JSON.stringify({ email, password, data: meta })
     });
@@ -1547,7 +1549,7 @@ const sb = {
 
   async signIn(email, password) {
     const c=new AbortController(); setTimeout(()=>c.abort(),5000);
-    const r = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, {
+    const r = await fetch(`${getSbUrl()}/auth/v1/token?grant_type=password`, {
       method:"POST", headers: this.headers(),
       body: JSON.stringify({ email, password })
     });
@@ -1557,7 +1559,7 @@ const sb = {
   },
 
   async signOut() {
-    await fetch(`${SB_URL}/auth/v1/logout`, { method:"POST", headers: this.headers() });
+    await fetch(`${getSbUrl()}/auth/v1/logout`, { method:"POST", headers: this.headers() });
     this._token = null; this._userId = null;
     localStorage.removeItem("sb_session");
   },
@@ -1568,7 +1570,7 @@ const sb = {
       if(saved) { const s = JSON.parse(saved); this._token = s.token; this._userId = s.userId; }
     }
     if(!this._token) return null;
-    const r = await fetch(`${SB_URL}/auth/v1/user`, { headers: this.headers() });
+    const r = await fetch(`${getSbUrl()}/auth/v1/user`, { headers: this.headers() });
     const d = await r.json();
     return d.id ? d : null;
   },
