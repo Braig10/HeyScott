@@ -252,7 +252,32 @@ Full methodology specification: **`METHODOLOGY.md`** — this is the governing d
 
 ---
 
-## 10. UX Patterns — Consistency Rules
+## 10. File Map — Read This Before Touching Any Feature
+
+**Always read the relevant file directly rather than loading all of App.jsx.**
+
+| What you need | File |
+|---|---|
+| Colour tokens (C), radius (R), shadows (Sh), font sizes (F) | `src/constants/design.js` |
+| Module curriculum data (MODULES array) | `src/constants/curriculum.js` |
+| Roleplay scenarios, ALL_CRITERIA, SECTOR_PERSONA_OVERLAYS | `src/constants/scenarios.js` |
+| Persona variants, difficulty modifiers, mock data, ASSESSMENT_SCENARIOS | `src/constants/personas.js` |
+| Supabase auth client (sb), profile/roleplay DB functions | `src/App.jsx` lines ~12–335 |
+| AI proxy call (callAPI), JSON parser (parseJSON) | `src/services/api.js` |
+| localStorage helpers (loadProfile, saveRoleplay, etc.) | `src/utils/storage.js` |
+| Roleplay chat + scoring (RoleplayView) | `src/App.jsx` (Phase 3 extraction pending) |
+| Manager dashboard | `src/App.jsx` (Phase 3 extraction pending) |
+| Auth pages (Login, Signup, Invite) | `src/App.jsx` |
+| Main router | `src/App.jsx` bottom ~100 lines |
+| Vercel serverless API routes | `api/` directory |
+
+**Branches:**
+- `main` → production (Vercel auto-deploys)
+- `dev` → staging / in-progress work — merge to main when tested
+
+---
+
+## 11. UX Patterns — Consistency Rules
 
 - Navigation via `go()` function — single-page app, no hard routing
 - All interactive elements: `transition: "all 0.15s"`
