@@ -4,33 +4,105 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
 
-/* ── Design tokens ── */
+/* ════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM  —  use these constants everywhere. Never use raw
+   hex/hsl values inline; always reference C / R / Sh / F below.
+
+   COLOR ROLES
+   ─────────────────────────────────────────────────────────────
+   C.bg          warm cream canvas — page background
+   C.bgDeep      one shade darker — sidebar, secondary surfaces
+   C.white       pure white — card surfaces
+   C.navy        primary text + dark filled elements
+   C.primary     sage green CTA — buttons, active states
+   C.muted       secondary text, placeholders, disabled labels
+   C.border      dividers, card outlines
+   C.lavPale     sage tint — AI bubble bg, coach highlights
+   C.lavSoft     sage tint mid — AI bubble border
+   C.lav         sage mid — decorative numbers, inverted text on dark
+
+   RADIUS SCALE (R)
+   ─────────────────────────────────────────────────────────────
+   R.xs   4px   tiny icon squares, avatar frames
+   R.sm   8px   inputs, form fields, inline buttons, small chips
+   R.md   12px  banners, alerts, option lists, sidebar stat block
+   R.lg   16px  cards, panels, main content blocks
+   R.xl   20px  modals, floating overlays, large panels
+   R.pill 999px tags, pill buttons, toggle tracks
+
+   SHADOW SCALE (Sh)
+   ─────────────────────────────────────────────────────────────
+   Sh.none  no shadow — default card state
+   Sh.sm    subtle lift — card hover
+   Sh.md    floating panel — modals, dropdowns
+   Sh.lg    prominent — feature cards on landing
+
+   FONT SIZE SCALE (F)
+   ─────────────────────────────────────────────────────────────
+   F.display  serif 36-48px — page hero titles (Instrument Serif)
+   F.h1       22px 800w     — section headings
+   F.h2       18px 700w     — sub-section headings
+   F.body     14px 400w     — body copy
+   F.sm       13px 400w     — compact body, card descriptions
+   F.xs       12px 400w     — metadata, secondary labels
+   F.xxs      11px 600w     — badges, caps labels
+   F.tiny     10px 700w     — uppercase tracking labels
+════════════════════════════════════════════════════════════════ */
 const C = {
-  // Backgrounds & surfaces
-  bg:        "hsl(40,20%,97%)",    // cream canvas
-  bgDeep:    "hsl(40,20%,95%)",    // sidebar / secondary surface
-  card:      "hsl(40,20%,99%)",    // card surface (near white)
+  // Surfaces
+  bg:        "hsl(40,20%,97%)",
+  bgDeep:    "hsl(40,20%,95%)",
+  card:      "hsl(40,20%,99%)",
   white:     "#FFFFFF",
   // Text
-  text:      "hsl(220,70%,15%)",   // deep ink — primary text
-  navy:      "hsl(220,70%,15%)",   // alias
+  text:      "hsl(220,70%,15%)",
+  navy:      "hsl(220,70%,15%)",
   navyMid:   "hsl(220,70%,12%)",
-  // Primary — muted sage
+  // Primary — muted sage green
   primary:   "hsl(140,15%,40%)",
   purple:    "hsl(140,15%,40%)",   // legacy alias → sage
-  // Structural
+  // Structure
   border:    "hsl(40,15%,88%)",
   secondary: "hsl(40,20%,92%)",
   muted:     "hsl(220,20%,40%)",
   accent:    "hsl(40,20%,92%)",
-  // Legacy tints (now sage-derived)
+  // Sage tints (used for AI bubbles, coach highlights)
   lav:       "hsl(140,20%,72%)",
   lavSoft:   "hsl(140,15%,67%)",
   lavPale:   "hsl(140,20%,92%)",
-  // Semantic
+  // Semantic status
   green: "#166534",  greenBg: "#DCFCE7",
   amber: "#854D0E",  amberBg: "#FEF9C3",
   red:   "hsl(0,84%,60%)",  redBg: "#FEE2E2",
+};
+
+/* Radius scale — see table above */
+const R = {
+  xs:   4,
+  sm:   8,
+  md:   12,
+  lg:   16,
+  xl:   20,
+  pill: 999,
+};
+
+/* Shadow scale */
+const Sh = {
+  none: "none",
+  sm:   "0 2px 12px rgba(20,15,45,0.07)",
+  md:   "0 4px 24px rgba(20,15,45,0.10)",
+  lg:   "0 8px 40px rgba(20,15,45,0.12)",
+};
+
+/* Font sizes */
+const F = {
+  h1:   22,
+  h2:   18,
+  body: 14,
+  sm:   13,
+  xs:   12,
+  xxs:  11,
+  tiny: 10,
 };
 
 /* ── Shared data ── */
@@ -1458,6 +1530,176 @@ Opening line: "Rachel Okonkwo."`,
 
 };
 
+/* ══════════════════════════════════════════════════════════════
+   SCORING CRITERIA — what each roleplay assesses, good vs great
+══════════════════════════════════════════════════════════════ */
+const ALL_CRITERIA = {
+  openingHook:       { label:"Opening & Permission", good:"Introduces self clearly and states a specific reason for calling", great:"Names a research-backed reason relevant to THIS candidate specifically; earns permission to continue naturally before going further" },
+  discoveryDepth:    { label:"Discovery Depth", good:"Asks 3+ questions before pitching the role", great:"Moves from situation → real problem → emotional implication → need-payoff; asks open questions exclusively before presenting the role" },
+  activeListening:   { label:"Active Listening", good:"Responds to what the candidate actually said", great:"Reflects back the candidate's exact language, builds follow-up questions from their answers, tolerates silence after a meaningful reveal" },
+  objectionHandling: { label:"Objection Handling", good:"Acknowledges the objection and tries to continue", great:"Acknowledge → bridge to their underlying motivation → redirect naturally without pressure; never argues or over-explains" },
+  callControl:       { label:"Call Control & Momentum", good:"Keeps the conversation roughly on topic", great:"Steers confidently without the candidate noticing; re-anchors without apologising; manages interruptions or tangents calmly and naturally" },
+  closingStrength:   { label:"Closing Strength", good:"Asks for a next step before ending the call", great:"Names the specific next step and gains a commitment on timing; makes it easy for them to say yes without pressure" },
+  valueArticulation: { label:"Value Articulation", good:"Describes the role and its key benefits", great:"Frames the opportunity entirely through the candidate's own stated priorities; uses their exact language; connects to their motivation rather than listing features" },
+  toneAndRapport:    { label:"Tone & Rapport", good:"Sounds professional, clear and friendly", great:"Feels genuinely peer-to-peer — no hedge words, no apologetic energy; candidate responds with warmth and increasing openness" },
+};
+
+const SCENARIO_CRITERIA = {
+  opening_beginner:             ["openingHook","toneAndRapport","activeListening"],
+  discovery_beginner:           ["discoveryDepth","activeListening","toneAndRapport"],
+  discovery_intermediate:       ["discoveryDepth","activeListening","callControl"],
+  objection_not_interested:     ["objectionHandling","activeListening","callControl"],
+  objection_spouse:             ["objectionHandling","activeListening","toneAndRapport"],
+  value_passive:                ["valueArticulation","closingStrength","activeListening"],
+  objection_happy_intermediate: ["objectionHandling","valueArticulation","closingStrength"],
+  resilience_harsh:             ["toneAndRapport","callControl","activeListening"],
+  resilience_recovery:          ["toneAndRapport","callControl","closingStrength"],
+  advanced_skeptic:             ["openingHook","discoveryDepth","valueArticulation","callControl"],
+  advanced_multi_objection:     ["objectionHandling","callControl","closingStrength"],
+  advanced_gatekeeper:          ["openingHook","callControl","toneAndRapport"],
+  limited_brief_beginner:       ["valueArticulation","closingStrength","activeListening"],
+  full_brief_intermediate:      ["valueArticulation","discoveryDepth","closingStrength"],
+  funnel_intermediate:          ["discoveryDepth","activeListening","closingStrength"],
+};
+
+/* ══════════════════════════════════════════════════════════════
+   SECTOR PERSONA OVERLAYS
+   Each sector provides full candidate + brief replacement data
+   so roleplays match the recruiter's actual industry.
+   A Finance recruiter practices on Finance candidates.
+   A Tech recruiter practices on Tech candidates.
+══════════════════════════════════════════════════════════════ */
+const SECTOR_PERSONA_OVERLAYS = {
+  "Tech & Engineering": {
+    world: "fast-moving SaaS/software engineering environment",
+    language: "sprint velocity, tech debt, greenfield vs legacy, IC vs management track, system design, architecture",
+    commonObjection: "I'm mid-sprint right now — really bad timing",
+    personas: [
+      { name:"Marcus Webb",    ini:"MW", col:"#7C6FCD", title:"Senior Software Engineer", company:"DataPulse (300 staff, Series B)",    tenure:"3.5 years", hook:"Moved into a Lead role 6 months ago — it's 80% admin. Misses building." },
+      { name:"Priya Nair",     ini:"PN", col:"#0EA5E9", title:"Engineering Manager",       company:"CloudLogic (150 staff, Series A)",   tenure:"2 years",   hook:"Managing a team of 6 but hasn't shipped code in 12 months. Feeling disconnected." },
+      { name:"Jake Osei",      ini:"JO", col:"#10B981", title:"Staff Engineer",             company:"FinStack (400 staff, post-IPO)",     tenure:"4 years",   hook:"Handed a boring maintenance project after the IPO. Was promised greenfield work." },
+      { name:"Aisha Park",     ini:"AP", col:"#F59E0B", title:"Head of Platform Engineering",company:"Launchpad (80 staff, pre-Series B)",tenure:"1.5 years", hook:"Company pivot means she now reports to a non-technical CPO. Frustrating." },
+      { name:"Ryan Tran",      ini:"RT", col:"#EF4444", title:"Principal Data Engineer",    company:"TelcoNex (1200 staff)",              tenure:"6 years",   hook:"Six years in — invisible ceiling. Promotion passed to an external hire." },
+    ],
+    roles: [
+      { role:"Senior Backend Engineer — IC with optional lead path", company:"GrowthStack (Series B, 150 staff, remote-first)", package:"$160k–$185k + equity", sellingPoints:["No forced management track","Greenfield architecture Q2","Full remote","Series B runway"] },
+      { role:"Staff Engineer — Platform & Infrastructure",           company:"Vantage AI (250 staff, deep tech, B2B)",          package:"$195k–$220k + equity", sellingPoints:["Genuine architectural ownership","Small eng team — high impact","Direct CTO access","Real equity at Series B"] },
+    ],
+  },
+  "Accounting & Finance": {
+    world: "financial services — banking, asset management, or corporate finance",
+    language: "P&L ownership, AUM, regulatory exposure, bonus structure, vesting, EBITDA, FP&A, compliance frameworks",
+    commonObjection: "My bonus is about to vest — terrible timing to be thinking about a move",
+    personas: [
+      { name:"Priya Nair",     ini:"PN", col:"#0EA5E9", title:"Senior Risk Analyst",        company:"FinBridge Capital (boutique, AUM $4.2B)", tenure:"4 years",   hook:"Stuck at the same level 4 years. Passed over for Risk Manager twice." },
+      { name:"Natasha Brennan",ini:"NB", col:"#7C6FCD", title:"Senior Accountant",           company:"PwC Advisory (Big 4)",                  tenure:"5 years",   hook:"Underpaid versus peers. Husband between jobs — timing feels scary but salary frustration is real." },
+      { name:"David Chen",     ini:"DC", col:"#10B981", title:"Finance Manager",              company:"Retail Holdings Group (ASX listed)",     tenure:"3 years",   hook:"CFO role went external. Knows the business inside out but leadership sees him as 'too operational'." },
+      { name:"Sophie Walsh",   ini:"SW", col:"#F59E0B", title:"Portfolio Manager",            company:"Perpetual (established fund)",           tenure:"6 years",   hook:"Strategy shift means she's now managing a mandate she doesn't believe in." },
+      { name:"Marcus Reid",    ini:"MR", col:"#EF4444", title:"Head of FP&A",                 company:"Telco Corp (2000 staff)",               tenure:"2.5 years", hook:"Reports to a CFO who blocks his involvement in strategic decisions. Feels like a reporting function only." },
+    ],
+    roles: [
+      { role:"Risk Manager — pathway to Head of Risk within 18 months", company:"FinBridge Capital (boutique, 80 staff, AUM $4.2B, 35% YoY growth)", package:"$140k–$160k + 15–20% bonus + profit share", sellingPoints:["Direct CRO access","Senior team, real ownership","Boutique — decisions move fast","Clear promotion path"] },
+      { role:"Finance Manager → CFO-track — 2 year pathway",            company:"Nexus Capital Partners (PE-backed, $600M AUM)",                   package:"$155k–$175k + carried interest", sellingPoints:["Carry exposure","CFO track in 24 months","Direct LP interaction","Lean team — you'll lead"] },
+    ],
+  },
+  "Sales & BD": {
+    world: "B2B SaaS or enterprise sales environment",
+    language: "quota, ARR, pipeline, win rate, ACV, land-and-expand, enterprise deals, SDR/AE motion, churn",
+    commonObjection: "I'm in the middle of a big deal close right now — genuinely not a good time",
+    personas: [
+      { name:"Zoe Hartley",    ini:"ZH", col:"#7C6FCD", title:"Senior Account Executive",    company:"Salesforce (enterprise division)",        tenure:"3 years",   hook:"Top 10% quota attainment but no clear path to Enterprise or VP Sales. Feels invisible above quota." },
+      { name:"Jake Wilkinson", ini:"JW", col:"#10B981", title:"Enterprise AE",               company:"Workday (growing team)",                  tenure:"2.5 years", hook:"Strong billings but the SDR motion changed — now hunting solo. Grinding harder for same results." },
+      { name:"Ryan Fitzgerald",ini:"RF", col:"#EF4444", title:"Head of Enterprise Sales",    company:"CloudBridge (recently acquired)",         tenure:"4 years",   hook:"Acquisition changed the comp plan. Ceiling dropped. Team morale poor." },
+      { name:"Ava Romano",     ini:"AR", col:"#F59E0B", title:"BD Manager",                  company:"Gartner (consulting division)",           tenure:"1.5 years", hook:"Recruited for a new vertical that never launched. Back to standard territory. Feels misled." },
+      { name:"Tom Reardon",    ini:"TR", col:"#0EA5E9", title:"National Sales Manager",      company:"SAP (established enterprise)",            tenure:"5 years",   hook:"Managed a team of 10 — team was restructured to 4. Feels like a demotion in all but title." },
+    ],
+    roles: [
+      { role:"VP Sales — ANZ Region (first VP hire)", company:"Vanta (Series B, $220M ARR, high growth)", package:"$220k–$250k + 20% bonus + equity", sellingPoints:["First VP — build the playbook","Unlimited upside equity","Series B trajectory","Remote-first, AU-based"] },
+      { role:"Enterprise AE — APAC expansion (greenfield territory)", company:"Rippling (scaling fast, top-tier product)", package:"$160k–$180k base + 100% OTE", sellingPoints:["Greenfield territory","Top-tier product — sells itself","Genuine enterprise motion","Top AE earning $400k+"] },
+    ],
+  },
+  "Healthcare": {
+    world: "healthcare, allied health, or medical technology sector",
+    language: "patient outcomes, clinical governance, credentialing, rostering, scope of practice, burnout, AHPRA, workforce planning",
+    commonObjection: "I'm in the middle of a shift handover right now — can you call back?",
+    personas: [
+      { name:"Dr. Sarah Mitchell",ini:"SM", col:"#10B981", title:"Senior Registrar",           company:"Royal Melbourne Hospital",              tenure:"3 years",   hook:"Passed over for Consultant role — external hire. Considering private sector or different hospital group." },
+      { name:"James Okafor",     ini:"JO", col:"#0EA5E9", title:"Allied Health Manager",       company:"Sonic Healthcare (regional)",           tenure:"4 years",   hook:"Manages 18 staff but has no budget authority. Governance creep making clinical decisions impossible." },
+      { name:"Lucy Park",        ini:"LP", col:"#F59E0B", title:"Clinical Nurse Specialist",    company:"Epworth (private)",                    tenure:"2 years",   hook:"Roster is chronic — 12-day stretches. Loves the clinical work, hates the conditions." },
+      { name:"Nathan Clarke",    ini:"NC", col:"#7C6FCD", title:"Health Informatics Manager",   company:"Medibank (corporate)",                 tenure:"5 years",   hook:"Implemented a system that got deprioritised by new exec. Watching his work shelved." },
+      { name:"Rachel Vong",      ini:"RV", col:"#EF4444", title:"Physiotherapy Director",       company:"Ramsay Health Care (group)",           tenure:"3.5 years", hook:"Asked to manage two more sites with no additional resources. Burnout risk is real." },
+    ],
+    roles: [
+      { role:"Head of Allied Health — group leadership role", company:"Healius Group (ASX listed, 140 sites nationally)", package:"$145k–$165k + car allowance + performance bonus", sellingPoints:["National remit — genuine leadership","Budget authority from day one","Strong clinical governance team","Listed company stability"] },
+      { role:"Clinical Nurse Manager — new ED unit",          company:"St Vincent's Private (Sydney)",                    package:"$110k–$125k + salary packaging",                sellingPoints:["New unit — shape the culture","Best-in-class equipment budget","No chronic roster issues","CNM autonomy respected"] },
+    ],
+  },
+  "Engineering & Construction": {
+    world: "civil engineering, project delivery, or construction environment",
+    language: "project scale, contract value, NEC3/4, Tier 1 clients, EPCM, programme, delivery risk, DA, feasibility",
+    commonObjection: "I'm on site in delivery right now — genuinely terrible timing",
+    personas: [
+      { name:"James Sutherland",ini:"JS", col:"#0EA5E9", title:"Senior Project Engineer",      company:"John Holland (Tier 1 contractor)",      tenure:"5 years",   hook:"Assigned to a repetitive substation rollout. Was promised major infrastructure. Frustrated." },
+      { name:"Emma Nash",       ini:"EN", col:"#10B981", title:"Project Manager",               company:"AECOM (consulting)",                   tenure:"3 years",   hook:"Promoted to PM but team was cut in half. Responsible for delivery with no resources." },
+      { name:"Ben Kumar",       ini:"BK", col:"#7C6FCD", title:"Construction Manager",          company:"CPB Contractors (Tier 1)",             tenure:"7 years",   hook:"Loyal to the business but last two projects were in remote locations. Missing family." },
+      { name:"Claire Thornton", ini:"CT", col:"#F59E0B", title:"Civil Design Engineer",         company:"GHD (consultancy)",                   tenure:"4 years",   hook:"BIM transition badly managed — she's doing twice the work for the same output and recognition." },
+      { name:"Marcus Diallo",   ini:"MD", col:"#EF4444", title:"Project Director",              company:"Laing O'Rourke (large scale)",        tenure:"6 years",   hook:"Ready for a P&L role. His current company runs all projects with centralised P&L — no ownership." },
+    ],
+    roles: [
+      { role:"Project Manager — Major Transport Infrastructure ($800M programme)", company:"WSP (Tier 1, cross-rail programme)", package:"$160k–$185k + vehicle + project completion bonus", sellingPoints:["Career-defining project scale","P&L ownership from week one","Tier 1 client — Cross River Rail adjacent","Flexible site-vs-office model"] },
+      { role:"Senior Civil Engineer — Design & Delivery", company:"Aurecon (national consultancy)", package:"$130k–$150k + training budget", sellingPoints:["Complex greenfield work","No travel required — metro projects only","Fast-tracked to Principal","Genuinely supportive technical leadership"] },
+    ],
+  },
+  "Legal": {
+    world: "commercial law firm or in-house legal environment",
+    language: "billable hours, PQE, practice group, secondment, partnership track, deal flow, matter complexity, client relationships",
+    commonObjection: "I'm in the middle of a matter right now — not a good time",
+    personas: [
+      { name:"Oliver Chen",     ini:"OC", col:"#7C6FCD", title:"Senior Associate — M&A",       company:"Herbert Smith Freehills (top-tier)",  tenure:"5 years",   hook:"7th year — partnership decision due. Hearing mixed signals internally. Not sure he'll make it." },
+      { name:"Catherine Walsh", ini:"CW", col:"#EF4444", title:"Special Counsel — Employment",  company:"Clayton Utz (national firm)",         tenure:"8 years",   hook:"Was partner-tracked 2 years ago. New managing partner changed direction. Feels invisible." },
+      { name:"Sarah Kim",       ini:"SK", col:"#10B981", title:"Senior Associate — Disputes",   company:"Allens (Big Law)",                   tenure:"4 years",   hook:"New Head of Department moved her off her best matters. Junior-heavy team around her." },
+      { name:"James Okafor",    ini:"JO", col:"#0EA5E9", title:"Legal Counsel — In-house",      company:"Telstra (enterprise)",               tenure:"3 years",   hook:"In-house move was meant to be better hours. It is — but he misses the complexity of private practice." },
+      { name:"Priya Mehta",     ini:"PM", col:"#F59E0B", title:"Partner — Banking & Finance",   company:"Boutique firm (30 lawyers)",         tenure:"2 years",   hook:"Partner at a boutique but the deal flow isn't there. Wants to be where the big mandates are." },
+    ],
+    roles: [
+      { role:"Special Counsel → Partner track — M&A & Capital Markets", company:"Gilbert + Tobin (top-tier, independent)", package:"$280k–$340k base + profit share", sellingPoints:["Clear partner track — 18 months","Top-tier mandates only","Independent firm — no conflicts","Strong associate support model"] },
+      { role:"Senior Legal Counsel — In-house (ASX 50)",                 company:"BHP (enterprise legal)",                 package:"$220k–$260k + STI + LTI",        sellingPoints:["Work on consequential decisions","No billable hours","STI + LTI exposure","Genuine GC pathway"] },
+    ],
+  },
+  "Property": {
+    world: "property development, real estate, or asset management environment",
+    language: "cap rate, NLA, DA, feasibility, yield compression, WALE, fund strategy, settlement, development pipeline",
+    commonObjection: "I'm in the middle of a settlement right now — genuinely can't talk",
+    personas: [
+      { name:"Sophie Grant",    ini:"SG", col:"#10B981", title:"Development Manager",           company:"Mirvac (ASX listed)",                 tenure:"4 years",   hook:"Promoted to DM but her project was put on hold. Now babysitting a stalled DA. Frustrated." },
+      { name:"Tom Reardon",     ini:"TR", col:"#0EA5E9", title:"Asset Manager",                  company:"Charter Hall (wholesale fund)",       tenure:"3 years",   hook:"Managing a fund that's no longer growing. Wants to move to development side but no pathway internally." },
+      { name:"Ava Nash",        ini:"AN", col:"#F59E0B", title:"Property Analyst",               company:"JLL (advisory)",                     tenure:"2 years",   hook:"Strong Excel and modelling skills — but stuck at Analyst level. Overlooked for AM role." },
+      { name:"Marcus Webb",     ini:"MW", col:"#7C6FCD", title:"Head of Acquisitions",           company:"Dexus (large-cap REIT)",             tenure:"5 years",   hook:"Acquisitions pipeline dried up post-rate-rises. Doing capital management work he didn't sign up for." },
+      { name:"Rachel Clarke",   ini:"RC", col:"#EF4444", title:"Fund Manager",                   company:"GPT Group (diversified REIT)",       tenure:"6 years",   hook:"Wants offshore exposure. Every conversation with leadership bounced — 'not the right time'." },
+    ],
+    roles: [
+      { role:"Development Manager — Residential & Mixed Use ($350M pipeline)", company:"Lendlease (Tier 1 developer)", package:"$170k–$195k + bonus + car", sellingPoints:["Active pipeline — not in hold","End-to-end DM ownership","ASX-listed stability","Structured DA to settlement pathway"] },
+      { role:"Fund Manager — Core Plus Real Estate",                           company:"Nuveen Real Estate (global manager)", package:"$200k–$230k + carry",   sellingPoints:["Offshore mandate exposure","Carry from fund 1","Small senior team","Direct LP relationships"] },
+    ],
+  },
+};
+
+/* Personality variants — set once per user at signup as seedVariant 0–5 */
+const PERSONA_VARIANTS = [
+  { label:"Cooperative but busy",     companyIdx:0, behaviorNote:"Engage reasonably well if the recruiter earns it. Give medium-length answers. One reflex objection max." },
+  { label:"Guarded and vague",        companyIdx:1, behaviorNote:"Deflect with positivity ('all good here'). Give short answers. Don't volunteer information. Warm up only if they ask a genuinely insightful question." },
+  { label:"Interrupter",              companyIdx:2, behaviorNote:"Cut the recruiter's sentences short frequently. Finish their thoughts (often incorrectly). Push for brevity. If they stay calm and steer back well, respect it." },
+  { label:"Abrupt and impatient",     companyIdx:3, behaviorNote:"3-word answers. Constant 'send me an email'. Give very little. Only open up if they demonstrate peer-level insight fast." },
+  { label:"Curious but non-committal",companyIdx:4, behaviorNote:"Ask lots of questions back. Show genuine interest but avoid committing to anything. Will explore hypotheticals but resist any next steps." },
+  { label:"Surface-positive",         companyIdx:5, behaviorNote:"Sound warm and engaged on the surface but give nothing of substance. 'Yeah that sounds great' without commitment. Politically careful." },
+];
+
+const DIFFICULTY_MODIFIERS = {
+  junior:       "Stay moderately guarded. Give average-length answers. One reflex objection max. Warm up if they demonstrate genuine curiosity.",
+  "mid-level":  "Use 2 objections. Require better question sequencing before opening up. Give shorter answers initially.",
+  senior:       "Give very short initial answers. Deploy 3 distinct objections. Require peer-level engagement and genuine insight before opening up. Don't volunteer anything.",
+};
+
 const SAMPLE_TRANSCRIPT = `Recruiter: Hey is this James?\nJames: Yeah, who's this?\nRecruiter: Hey James, it's Mike calling from Talent Co. How are you going today?\nJames: Fine, what's this about?\nRecruiter: So I'm calling because we have a really great opportunity. Senior role, good salary.\nJames: I'm not really looking right now.\nRecruiter: Oh right, but this is a really good role. The salary is 120k plus super.\nJames: How did you get my number?\nRecruiter: We have your details in our database. Can I send you the JD?\nJames: Not really interested, thanks.\nRecruiter: Are you sure? Lots of benefits.\nJames: Yeah look I'm busy. Send me an email if you want.`;
 
 const SCORE_DATA=[{m:"Jan",v:68},{m:"Feb",v:70},{m:"Mar",v:72},{m:"Apr",v:71},{m:"May",v:74},{m:"Jun",v:75}];
@@ -1493,6 +1735,15 @@ const ANALYSES = [
 const getSbUrl = () => window._env?.SUPABASE_URL  || "";
 const getSbKey = () => window._env?.SUPABASE_ANON_KEY || "";
 const COMPANY_ID = "1775cff8-3650-4950-b578-88a24efcdf62";
+
+// PKCE helpers for Supabase email confirmation (Supabase removed Implicit flow)
+async function generatePKCEPair() {
+  const array = crypto.getRandomValues(new Uint8Array(32));
+  const verifier = btoa(String.fromCharCode(...array)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  const challenge = btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  return { verifier, challenge };
+}
 
 // Lightweight Supabase REST client (no npm package needed)
 const sb = {
@@ -1537,14 +1788,30 @@ const sb = {
   },
 
   async signUp(email, password, meta={}) {
+    const { verifier, challenge } = await generatePKCEPair();
+    localStorage.setItem('pkce_verifier', verifier);
     const c=new AbortController(); setTimeout(()=>c.abort(),5000);
     const r = await fetch(`${getSbUrl()}/auth/v1/signup`, {
       method:"POST", headers: this.headers(),
-      body: JSON.stringify({ email, password, data: meta })
+      body: JSON.stringify({ email, password, data: meta, code_challenge: challenge, code_challenge_method: 'S256' })
     });
     const d = await r.json();
     if(d.access_token) { this._token = d.access_token; this._userId = d.user?.id; }
     return d;
+  },
+
+  async exchangeCode(code) {
+    const verifier = localStorage.getItem('pkce_verifier');
+    localStorage.removeItem('pkce_verifier');
+    if(!verifier) return null;
+    const r = await fetch(`${getSbUrl()}/auth/v1/token?grant_type=pkce`, {
+      method:'POST',
+      headers: { 'Content-Type':'application/json', 'apikey': getSbKey() },
+      body: JSON.stringify({ auth_code: code, code_verifier: verifier }),
+    });
+    const d = await r.json();
+    if(d.access_token) { this._token = d.access_token; this._userId = d.user?.id; this.saveSession(d.access_token, d.user?.id); return d.user || null; }
+    return null;
   },
 
   async signIn(email, password) {
@@ -1966,7 +2233,7 @@ function Ring({score,sz=80}){
 function Modal({children,onClose}){
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(20,15,45,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:5,padding:36,maxWidth:520,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.white,borderRadius:R.xl,padding:36,maxWidth:520,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
         {children}
       </div>
     </div>
@@ -2008,7 +2275,7 @@ function TopNav({page, go, userRole, notifCount=2}){
 function LeftPanel({go}){
   return(
     <aside style={{width:220,flexShrink:0,display:"flex",flexDirection:"column",gap:18}}>
-      <div style={{background:C.navy,borderRadius:5,padding:18,color:"#fff"}}>
+      <div style={{background:C.navy,borderRadius:R.md,padding:18,color:"#fff"}}>
         <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:2,opacity:0.5,marginBottom:4}}>Overall Progress</div>
         <div style={{fontSize:34,fontWeight:800,marginBottom:10}}>12%</div>
         <div style={{height:5,borderRadius:999,background:"rgba(255,255,255,0.15)",overflow:"hidden"}}>
@@ -2153,7 +2420,7 @@ function LoginPage({go, onAuth}){
 }
 
 function SignupPage({go, onAuth}){
-  const [step, setStep]       = useState("type"); // "type" | "form"
+  const [step, setStep]       = useState("type"); // "type" | "form" | "confirm"
   const [accountType, setAccountType] = useState(null); // "individual" | "manager"
   const [name, setName]       = useState("");
   const [email, setEmail]     = useState("");
@@ -2174,29 +2441,43 @@ function SignupPage({go, onAuth}){
     try {
       const role = accountType === "manager" ? "manager" : "individual";
       const d = await sb.signUp(email.trim(), password, { name: name.trim(), role });
-      if(d.error || !d.user) { setError(d.error?.message || "Signup failed — try a different email."); return; }
+      if(d.error) { setError(d.error.message || "Signup failed — try a different email."); return; }
+      // With email confirmation ON, Supabase returns user at top level (d.id), not d.user
+      const userId = d.user?.id || d.id;
+      if(!userId) { setError("Signup failed — try a different email."); return; }
       const token = d.access_token || d.session?.access_token;
-      if(token) sb.saveSession(token, d.user.id);
-      await sbSaveProfile(d.user.id, { name: name.trim(), role, focus:"", billings:"", challenge:"", ownChallenge:"" });
-
-      if(accountType === "manager") {
-        try {
-          const resp = await fetch("/api/create-team", {
-            method:"POST", headers:{"Content-Type":"application/json"},
-            body: JSON.stringify({ userId: d.user.id, teamName: name.trim()+"'s Team", token })
-          });
-          const teamData = await resp.json();
-          if(teamData.companyId) {
-            setCompanyId(teamData.companyId);
-            setInviteLink(`${window.location.origin}?company=${teamData.companyId}`);
-          }
-        } catch(te) { console.error("create-team error:", te); }
-        setStep("invite");
+      if(token) {
+        // Email confirmation OFF — proceed immediately
+        sb.saveSession(token, userId);
+        const user = d.user || d;
+        await sbSaveProfile(userId, { name: name.trim(), role, focus:"", billings:"", challenge:"", ownChallenge:"" });
+        if(accountType === "manager") {
+          try {
+            const resp = await fetch("/api/create-team", {
+              method:"POST", headers:{"Content-Type":"application/json"},
+              body: JSON.stringify({ userId, teamName: name.trim()+"'s Team", token })
+            });
+            const teamData = await resp.json();
+            if(teamData.companyId) {
+              setCompanyId(teamData.companyId);
+              setInviteLink(`${window.location.origin}?company=${teamData.companyId}`);
+            }
+          } catch(te) { console.error("create-team error:", te); }
+          setStep("invite");
+        } else {
+          await onAuth(user, role);
+        }
       } else {
-        await onAuth(d.user, role);
+        // Email confirmation ON — save pending data, show "check your email"
+        localStorage.setItem('heyscott_pending_signup', JSON.stringify({
+          role,
+          name: name.trim(),
+          teamName: accountType === "manager" ? name.trim()+"'s Team" : undefined,
+        }));
+        setStep("confirm");
       }
     } catch(e) {
-      setError("Error: " + (e?.message || String(e)));
+      setError("Connection issue — please try again.");
     } finally { setLoading(false); }
   };
 
@@ -2241,6 +2522,22 @@ function SignupPage({go, onAuth}){
           <button onClick={async()=>{ const u = await sb.getUser(); if(u) await onAuth(u, "manager"); }}
             style={{background:C.navy,color:"#fff",border:"none",borderRadius:8,padding:"12px",fontWeight:700,fontSize:14,cursor:"pointer",marginTop:8}}>
             Go to Manager Portal →
+          </button>
+        </div>
+      </AuthCard>
+    );
+  }
+
+  if(step === "confirm"){
+    return(
+      <AuthCard title="Check your email" subtitle="We've sent you a confirmation link.">
+        <div style={{display:"flex",flexDirection:"column",gap:16,textAlign:"center",padding:"8px 0"}}>
+          <div style={{fontSize:40}}>✉️</div>
+          <p style={{fontSize:14,color:C.text,margin:0,lineHeight:1.5}}>Click the link we sent to <strong>{email}</strong> to activate your account.</p>
+          <p style={{fontSize:12,color:C.muted,margin:0}}>Can't find it? Check your spam folder.</p>
+          <button onClick={()=>go("login")}
+            style={{background:"none",border:"none",color:C.purple,fontSize:13,fontWeight:600,cursor:"pointer",marginTop:8}}>
+            Back to login
           </button>
         </div>
       </AuthCard>
@@ -2312,6 +2609,7 @@ function SignupPage({go, onAuth}){
 
 function InvitePage({go, onAuth}){
   const companyId = new URLSearchParams(window.location.search).get('company');
+  const [step, setStep]       = useState("form");
   const [name, setName]       = useState("");
   const [email, setEmail]     = useState("");
   const [password, setPassword] = useState("");
@@ -2324,15 +2622,41 @@ function InvitePage({go, onAuth}){
     setLoading(true); setError(null);
     try {
       const d = await sb.signUp(email.trim(), password, { name: name.trim(), role: "learner", company_id: companyId });
-      if(d.error || !d.user) { setError(d.error?.message || "Signup failed — try a different email."); return; }
+      if(d.error) { setError(d.error.message || "Signup failed — try a different email."); return; }
+      const userId = d.user?.id || d.id;
+      if(!userId) { setError("Signup failed — try a different email."); return; }
       const token = d.access_token || d.session?.access_token;
-      if(token) sb.saveSession(token, d.user.id);
-      await sbSaveProfile(d.user.id, { name: name.trim(), role: "learner", company_id: companyId, focus:"", billings:"", challenge:"", ownChallenge:"" });
-      await onAuth(d.user, "learner");
+      if(token) {
+        sb.saveSession(token, userId);
+        await sbSaveProfile(userId, { name: name.trim(), role: "learner", company_id: companyId, focus:"", billings:"", challenge:"", ownChallenge:"" });
+        const user = d.user || d;
+        await onAuth(user, "learner");
+      } else {
+        localStorage.setItem('heyscott_pending_signup', JSON.stringify({
+          role: "learner", name: name.trim(), company_id: companyId,
+        }));
+        setStep("confirm");
+      }
     } catch(e) {
-      setError("Error: " + (e?.message || String(e)));
+      setError("Connection issue — please try again.");
     } finally { setLoading(false); }
   };
+
+  if(step === "confirm"){
+    return(
+      <AuthCard title="Check your email" subtitle="We've sent you a confirmation link.">
+        <div style={{display:"flex",flexDirection:"column",gap:16,textAlign:"center",padding:"8px 0"}}>
+          <div style={{fontSize:40}}>✉️</div>
+          <p style={{fontSize:14,color:C.text,margin:0,lineHeight:1.5}}>Click the link we sent to <strong>{email}</strong> to activate your account.</p>
+          <p style={{fontSize:12,color:C.muted,margin:0}}>Can't find it? Check your spam folder.</p>
+          <button onClick={()=>go("login")}
+            style={{background:"none",border:"none",color:C.purple,fontSize:13,fontWeight:600,cursor:"pointer",marginTop:8}}>
+            Back to login
+          </button>
+        </div>
+      </AuthCard>
+    );
+  }
 
   return(
     <AuthCard title="You've been invited" subtitle="Create your account to join your team on HeyScott.">
@@ -2491,9 +2815,9 @@ function Landing({go}){
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:14}}>
           {features.map((f,i)=>(
             <div key={i}
-              style={{background:C.white,borderRadius:5,padding:"24px 20px",border:`1px solid ${C.border}`,transition:"box-shadow 0.18s,transform 0.18s",cursor:"default"}}
-              onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 8px 32px rgba(20,15,45,0.09)";e.currentTarget.style.transform="translateY(-3px)";}}
-              onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="translateY(0)";}}>
+              style={{background:C.white,borderRadius:R.lg,padding:"24px 20px",border:`1px solid ${C.border}`,transition:"box-shadow 0.18s,transform 0.18s",cursor:"default"}}
+              onMouseEnter={e=>{e.currentTarget.style.boxShadow=Sh.lg;e.currentTarget.style.transform="translateY(-3px)";}}
+              onMouseLeave={e=>{e.currentTarget.style.boxShadow=Sh.none;e.currentTarget.style.transform="translateY(0)";}}>
               <div style={{fontSize:24,marginBottom:12}}>{f.icon}</div>
               <div style={{fontWeight:700,color:C.navy,fontSize:14,marginBottom:6}}>{f.title}</div>
               <p style={{fontSize:13,color:C.muted,lineHeight:1.6,margin:0}}>{f.desc}</p>
@@ -2846,7 +3170,7 @@ CONVERSATION RULES:
                   <div key={i} style={{display:"flex",gap:8,justifyContent:m.role==="user"?"flex-end":"flex-start",alignItems:"flex-start"}}>
                     {m.role==="assistant"&&<Av ini="SC" col={C.lavSoft} sz={28}/>}
                     <div style={{
-                      background:m.role==="user"?C.navy:"rgba(237,233,254,0.5)",
+                      background:m.role==="user"?C.navy:C.lavPale,
                       color:m.role==="user"?"#fff":C.text,
                       borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",
                       padding:"10px 14px",fontSize:13,lineHeight:1.65,maxWidth:"80%",
@@ -2859,7 +3183,7 @@ CONVERSATION RULES:
                 {loading && msgs.length>0 && (
                   <div style={{display:"flex",gap:8,alignItems:"flex-start"}}>
                     <Av ini="SC" col={C.lavSoft} sz={28}/>
-                    <div style={{background:"rgba(237,233,254,0.5)",borderRadius:"14px 14px 14px 4px",padding:"10px 14px",border:`1px solid ${C.lavSoft}`}}>
+                    <div style={{background:C.lavPale,borderRadius:"14px 14px 14px 4px",padding:"10px 14px",border:`1px solid ${C.lavSoft}`}}>
                       <div style={{display:"flex",gap:4}}>{[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:C.purple,animation:"bounce 1s infinite",animationDelay:`${i*0.2}s`}}/>)}</div>
                     </div>
                   </div>
@@ -3002,8 +3326,37 @@ CONVERSATION RULES:
   );
 }
 
+function buildCurriculumPlan(profile) {
+  if(!profile?.challenge) return null;
+  const b = profile.billings || "";
+  const issenior = b.includes("1m") || b.includes("1M") || b.includes("500");
+  const seedVariant = profile.seedVariant ?? Math.floor(Math.random()*6);
+
+  // Map challenge → priority module sequence (by MODULES index)
+  const challengeMap = {
+    "Starting conversations":    [0,1,8,2,3,6,7,4,5],
+    "Discovery":                 [1,8,0,2,3,6,7,4,5],
+    "Handling objections":       [2,0,1,3,6,7,8,4,5],
+    "Closing":                   [3,2,1,0,8,6,7,4,5],
+    "Confidence and consistency":[4,0,1,2,3,6,7,8,5],
+  };
+  const order = challengeMap[profile.challenge] || [...Array(MODULES.length).keys()];
+  const orderedModules = order.map(i=>MODULES[i]).filter(Boolean);
+
+  // Unlock first 3, rest gated (seniors get 4 unlocked)
+  const unlockCount = issenior ? 4 : 3;
+
+  const weeksToGoal = profile.goalDate
+    ? Math.max(1, Math.round((new Date(profile.goalDate)-new Date())/(1000*60*60*24*7)))
+    : 8;
+  const roleplaysPerWeek = Math.max(1, Math.ceil((orderedModules.length*2)/weeksToGoal));
+
+  return { orderedModules, unlockCount, seedVariant, weeksToGoal, roleplaysPerWeek };
+}
+
 function Learning({go,setMod,profile}){
   const [view,setView]=useState("path");
+  const [customRP,setCustomRP]=useState(null); // {input, loading, scenario, preview}
 
   // If redirected from post-roleplay confidence check, open journal tab
   useEffect(()=>{
@@ -3018,23 +3371,87 @@ function Learning({go,setMod,profile}){
   const [quickMode,setQuickMode]=useState(false);
   const [showPath,setShowPath]=useState(false); // "Choose Your Path" interstitial
 
-  const modTabs=["All","Onboarding","Skills","Mindset"];
-  const filtered=tab==="All"?MODULES:MODULES.filter(m=>m.cat===tab);
-  const rec=MODULES.find(m=>m.rec);
+  // If a custom scenario is ready and confirmed, render the roleplay directly
+  if(customRP?.scenario && customRP?.confirmed){
+    const fakeLesson = {id:"custom", title:customRP.scenario.skillFocus||"Custom Practice", type:"roleplay", scenarioKey:"__custom__"};
+    return(
+      <RoleplayView
+        lesson={fakeLesson} mod={null} go={go}
+        profile={profile}
+        customScenario={customRP.scenario}
+        onBack={()=>setCustomRP(null)}
+        onJournal={()=>setCustomRP(null)}
+      />
+    );
+  }
 
-  // Personalised recommendation based on new profile shape
-  const profRec=
+  const generateCustomRP = async (input) => {
+    setCustomRP(p=>({...p,loading:true}));
+    const sectorCtx = profile?.focus ? ` The recruiter works in ${profile.focus}.` : "";
+    const prompt = `You are Scott, a recruitment sales coach. A recruiter wants to practice a custom roleplay scenario they've described. Generate a realistic candidate persona and scenario for them.
+
+Recruiter's request: "${input}"${sectorCtx}
+
+Return ONLY this JSON (no markdown):
+{
+  "skillFocus": "short label for what's being practiced",
+  "difficulty": "beginner|intermediate|advanced",
+  "moduleContext": "Custom Practice",
+  "preview": "2 sentences: who the candidate is and what the recruiter should focus on",
+  "coachObjectives": ["objective 1", "objective 2", "objective 3"],
+  "brief": {
+    "briefType": "full",
+    "industry": "inferred from context",
+    "role": "specific role title",
+    "company": "realistic company name and brief description",
+    "package": "realistic salary range",
+    "location": "realistic location",
+    "whyRelevant": "why this opportunity is relevant to the candidate"
+  },
+  "candidate": {
+    "name": "realistic full name",
+    "ini": "initials (2 letters)",
+    "col": "#7C6FCD",
+    "title": "current role at current company",
+    "company": "current company",
+    "tenure": "X years",
+    "personality": "2 sentences on personality",
+    "hook": "what makes them moveable — their hidden frustration or motivation"
+  },
+  "system": "You are playing [name], [title] at [company]. [2-3 sentences on their situation and what they haven't told anyone]. PERSONALITY: [their communication style]. RESPONSE STYLE: Keep initial responses SHORT (1-2 sentences). Warm up if the recruiter earns it. Sound completely natural — use contractions, hesitations. React to what they actually say. CALL FLOW: [opening line and call arc]. Opening line when called: \\"[realistic opening]\\"",
+  "activeCriteria": ["openingHook", "discoveryDepth"]
+}`;
+    try {
+      const resp = await callAPI([{role:"user",content:prompt}],null,{model:"claude-haiku-4-5",max_tokens:1200,temperature:0.7});
+      const parsed = parseJSON(resp);
+      if(parsed?.candidate && parsed?.system){
+        setCustomRP({input, loading:false, scenario:parsed, preview:parsed.preview, confirmed:false});
+      } else {
+        setCustomRP({input,loading:false,error:"Couldn't build that scenario — try describing it differently."});
+      }
+    } catch(e){
+      setCustomRP({input,loading:false,error:"Connection issue — please try again."});
+    }
+  };
+
+  const modTabs=["All","Onboarding","Skills","Mindset"];
+  const plan = buildCurriculumPlan(profile);
+  const orderedForDisplay = plan?.orderedModules || MODULES;
+  const filtered=tab==="All"?orderedForDisplay:orderedForDisplay.filter(m=>m.cat===tab);
+  const rec=MODULES.find(m=>m.rec);
+  const profRec = plan ? plan.orderedModules[0] : (
     profile?.challenge==="Handling objections"?MODULES[2]:
     profile?.challenge==="Confidence and consistency"?MODULES[4]:
     profile?.challenge==="Discovery"?MODULES[1]:
     profile?.challenge==="Closing"?MODULES[3]:
-    profile?.challenge==="Starting conversations"?MODULES[0]:rec;
+    profile?.challenge==="Starting conversations"?MODULES[0]:rec
+  );
 
   const ModCard=({m})=>(
     <div onClick={()=>!m.locked&&(setMod(m),go("module"))}
       style={{background:C.white,borderRadius:18,border:`1px solid ${m.locked?C.border:C.border}`,padding:20,cursor:m.locked?"not-allowed":"pointer",opacity:m.locked?0.55:1,position:"relative",transition:"box-shadow 0.2s"}}
-      onMouseEnter={e=>{if(!m.locked)e.currentTarget.style.boxShadow="0 4px 20px rgba(20,15,45,0.08)"}}
-      onMouseLeave={e=>e.currentTarget.style.boxShadow="none"}>
+      onMouseEnter={e=>{if(!m.locked)e.currentTarget.style.boxShadow=Sh.sm}}
+      onMouseLeave={e=>e.currentTarget.style.boxShadow=Sh.none}>
       {m.isNew&&<div style={{position:"absolute",top:14,right:14,background:C.purple,color:"#fff",borderRadius:999,padding:"2px 10px",fontSize:11,fontWeight:700}}>NEW</div>}
       <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
         <LvlBadge level={m.level}/>
@@ -3073,7 +3490,7 @@ function Learning({go,setMod,profile}){
 
         {/* Personalised banner if profile exists */}
         {profile?.challenge&&(
-          <div style={{background:C.navy,borderRadius:5,padding:"16px 20px",marginBottom:16,display:"flex",gap:14,alignItems:"flex-start"}}>
+          <div style={{background:C.navy,borderRadius:R.md,padding:"16px 20px",marginBottom:16,display:"flex",gap:14,alignItems:"flex-start"}}>
             <Av ini="SC" col={C.lavSoft} sz={34}/>
             <div style={{flex:1}}>
               <div style={{fontWeight:700,color:"#fff",fontSize:13,marginBottom:4}}>
@@ -3124,6 +3541,52 @@ function Learning({go,setMod,profile}){
                 <button key={t} onClick={()=>setTab(t)} style={{padding:"6px 14px",borderRadius:999,border:`1px solid ${C.border}`,background:tab===t?C.navy:C.white,color:tab===t?"#fff":C.muted,fontSize:12,fontWeight:500,cursor:"pointer"}}>{t}</button>
               ))}
             </div>
+
+            {/* Custom Roleplay — Practice anything */}
+            {tab==="All"&&(
+              <div style={{background:C.white,border:`1px solid ${C.border}`,borderRadius:18,padding:"18px 20px",marginBottom:18}}>
+                <div style={{display:"flex",gap:12,alignItems:"flex-start",marginBottom:12}}>
+                  <div style={{width:38,height:38,borderRadius:5,background:C.lavPale,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🎭</div>
+                  <div>
+                    <div style={{fontWeight:700,color:C.navy,fontSize:14,marginBottom:2}}>Practice anything — custom roleplay</div>
+                    <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Tell Scott what you want to practice and he'll build a scenario on the spot. Sector-matched, fully scored.</div>
+                  </div>
+                </div>
+                {(!customRP || customRP.error) && (
+                  <div style={{display:"flex",gap:8}}>
+                    <input
+                      placeholder={`e.g. "A guarded ${profile?.focus||"finance"} candidate who keeps saying they're happy where they are"`}
+                      defaultValue={customRP?.input||""}
+                      id="custom-rp-input"
+                      style={{flex:1,background:C.bg,border:`1.5px solid ${C.border}`,borderRadius:999,padding:"9px 14px",fontSize:13,color:C.text,outline:"none",fontFamily:"'Inter',sans-serif"}}
+                      onKeyDown={e=>{ if(e.key==="Enter"&&e.target.value.trim()) generateCustomRP(e.target.value.trim()); }}
+                    />
+                    <button onClick={()=>{ const el=document.getElementById("custom-rp-input"); if(el?.value?.trim()) generateCustomRP(el.value.trim()); }}
+                      style={{background:C.purple,color:"#fff",border:"none",borderRadius:999,padding:"9px 18px",fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0}}>
+                      Create →
+                    </button>
+                  </div>
+                )}
+                {customRP?.error && <div style={{fontSize:12,color:C.red,marginTop:6}}>{customRP.error}</div>}
+                {customRP?.loading && <div style={{fontSize:13,color:C.muted,marginTop:8}}>Scott is building your scenario…</div>}
+                {customRP?.scenario && !customRP.confirmed && (
+                  <div style={{marginTop:10,background:C.lavPale,borderRadius:5,padding:"12px 14px",border:`1px solid ${C.lavSoft}`}}>
+                    <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Scott's scenario</div>
+                    <p style={{fontSize:13,color:C.navy,lineHeight:1.6,margin:"0 0 10px"}}>{customRP.preview}</p>
+                    <div style={{display:"flex",gap:8}}>
+                      <button onClick={()=>setCustomRP(p=>({...p,confirmed:true}))}
+                        style={{background:C.purple,color:"#fff",border:"none",borderRadius:999,padding:"8px 18px",fontSize:13,fontWeight:700,cursor:"pointer"}}>
+                        Start roleplay →
+                      </button>
+                      <button onClick={()=>setCustomRP(null)}
+                        style={{background:"none",border:`1px solid ${C.border}`,color:C.muted,borderRadius:999,padding:"8px 14px",fontSize:12,cursor:"pointer"}}>
+                        Change it
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Recommended banner */}
             {tab==="All"&&profRec&&(
@@ -3593,7 +4056,7 @@ function ConfidenceCheck({type, lessonTitle, aiScore, onComplete, onJournal}){
 /* ══════════════════════════════════════════════════════════════
    ROLEPLAY VIEW — Brief → Split-panel call → Framework debrief
 ══════════════════════════════════════════════════════════════ */
-function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=null, onJournal=null}){
+function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=null, onJournal=null, customScenario=null}){
   const isMobile = useWindowWidth() < 768;
   const [phase, setPhase] = useState("brief");
   const [showPostCheck, setShowPostCheck] = useState(false);
@@ -3620,9 +4083,22 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
   const isRecordingRef  = useRef(false);
   const isMutedRef      = useRef(false);
 
-  const scenarioKey = lesson.scenarioKey || "opening_beginner";
-  const scenario = SCENARIOS[scenarioKey] || SCENARIOS["opening_beginner"];
-  const cand = scenario.candidate;
+  const scenarioKey = lesson?.scenarioKey || "opening_beginner";
+  const scenario = customScenario || SCENARIOS[scenarioKey] || SCENARIOS["opening_beginner"];
+  const baseCand = scenario.candidate;
+  const _rpOverlay = profile?.focus ? (SECTOR_PERSONA_OVERLAYS[profile.focus] || null) : null;
+  const _rpVariant = PERSONA_VARIANTS[profile?.seedVariant ?? 0] || PERSONA_VARIANTS[0];
+  const _sectorPersona = _rpOverlay?.personas?.[ _rpVariant.companyIdx % (_rpOverlay.personas?.length || 1)];
+  const cand = _sectorPersona ? {
+    ...baseCand,
+    name: _sectorPersona.name,
+    ini: _sectorPersona.ini,
+    col: _sectorPersona.col,
+    title: _sectorPersona.title,
+    company: _sectorPersona.company,
+    tenure: _sectorPersona.tenure,
+    hook: _sectorPersona.hook,
+  } : baseCand;
   const brief = scenario.brief;
 
   useEffect(()=>{
@@ -3760,26 +4236,74 @@ function RoleplayView({lesson, mod, go, onBack, userLevel="beginner", profile=nu
 
   // ── START CALL — no getUserMedia, SpeechRecognition handles its own permission ──
   const startCall = () => {
-    const openingText = scenario.system.match(/Opening line[^:]*:\s*"([^"]+)"/)?.[1] || "Hello?";
+    // When a sector overlay is active, the candidate identity is swapped.
+    // Use the sector persona's name as the opening line so there's no mismatch.
+    const overlay = profile?.focus ? (SECTOR_PERSONA_OVERLAYS[profile.focus] || null) : null;
+    const variant  = PERSONA_VARIANTS[profile?.seedVariant ?? 0] || PERSONA_VARIANTS[0];
+    const sectorPersona = overlay?.personas?.[variant.companyIdx % (overlay.personas?.length || 1)];
+
+    let openingText;
+    if(sectorPersona) {
+      // Most scenarios use a formal name pickup (e.g. "Priya Nair.") or neutral ("Yeah?").
+      // When sector-swapped, use the sector persona's last name or a neutral pickup.
+      const baseOpening = scenario.system.match(/Opening line[^:]*:\s*"([^"]+)"/)?.[1] || "";
+      const hasName = /^[A-Z][a-z]+ [A-Z][a-z]+\.?$/.test(baseOpening.trim()); // "First Last." pattern
+      openingText = hasName ? `${sectorPersona.name}.` : (baseOpening || `${sectorPersona.name}.`);
+    } else {
+      openingText = scenario.system.match(/Opening line[^:]*:\s*"([^"]+)"/)?.[1] || "Hello?";
+    }
+
     setMsgs([{role:"ai", content:openingText, time:ts()}]);
     setPhase("call");
     setTimeout(()=> speak(openingText), 700);
   };
 
 
-  // ── ROLEPLAY PERSONALISATION ──
+  // ── ROLEPLAY PERSONALISATION — full sector + persona swap ──
   const buildPersonalisedSystem = (scen, prof) => {
     if(!prof?.focus) return scen.system;
     const b = prof.billings || "";
-    const level = (b.includes("500") || b.includes("1m")) ? "senior"
-      : b.includes("250") ? "mid-level" : "junior";
-    return scen.system + `
+    const level = (b.includes("500") || b.includes("1m") || b.includes("1M")) ? "senior"
+      : (b.includes("250") || b.includes("300") || b.includes("400")) ? "mid-level" : "junior";
+    const difficulty = DIFFICULTY_MODIFIERS[level] || DIFFICULTY_MODIFIERS.junior;
 
-RECRUITER CONTEXT — calibrate your responses to this:
-- Recruiter's sector: ${prof.focus}
-- Experience level: ${level} (${b || "not stated"})
-- Their stated challenge: "${prof.ownChallenge || prof.challenge || "not stated"}"
-If the opportunity being discussed is in their sector, acknowledge it naturally. ${level === "junior" ? "Stay slightly more guarded — they need to earn the conversation." : "Warm up a little faster once they demonstrate skill."}`;
+    const overlay = SECTOR_PERSONA_OVERLAYS[prof.focus] || SECTOR_PERSONA_OVERLAYS["Generic"] || null;
+    const variant = PERSONA_VARIANTS[prof.seedVariant ?? 0] || PERSONA_VARIANTS[0];
+
+    // Pick sector persona by seedVariant index (gives each user a consistent but unique person)
+    const sectorPersona = overlay?.personas?.[variant.companyIdx % (overlay.personas?.length || 1)];
+    const sectorRole    = overlay?.roles?.[0];
+
+    const sectorOverride = (overlay && sectorPersona && sectorRole) ? `
+
+═══════════════════════════════════════════════════
+SECTOR OVERRIDE — IMPORTANT: fully adopt this persona
+═══════════════════════════════════════════════════
+The recruiter placing you works in: ${prof.focus}
+You must present yourself as a candidate from the ${overlay.world}.
+
+YOUR IDENTITY FOR THIS ROLEPLAY:
+- Name: ${sectorPersona.name}
+- Current role: ${sectorPersona.title} at ${sectorPersona.company} (${sectorPersona.tenure})
+- Your hidden hook (what makes you moveable): ${sectorPersona.hook}
+
+THE OPPORTUNITY BEING DISCUSSED:
+- Role: ${sectorRole.role}
+- Company: ${sectorRole.company}
+- Package: ${sectorRole.package}
+- Why relevant: ${sectorRole.sellingPoints.join(", ")}
+
+YOUR INDUSTRY LANGUAGE: Use ${overlay.world} terminology naturally — ${overlay.language}.
+YOUR REFLEXIVE OBJECTION when pushed: "${overlay.commonObjection}"
+
+Maintain the same personality traits and call flow from the original scenario above, but express them through this sector identity.` : "";
+
+    return scen.system + sectorOverride + `
+
+PERSONALITY VARIANT FOR THIS SESSION: ${variant.label}
+${variant.behaviorNote}
+
+DIFFICULTY CALIBRATION (recruiter is ${level}): ${difficulty}`;
   };
 
   // ── SEND MESSAGE ──
@@ -3945,7 +4469,7 @@ If the opportunity being discussed is in their sector, acknowledge it naturally.
         <h1 style={{fontSize:22,fontWeight:800,color:C.navy,marginBottom:4}}>{lesson.title}</h1>
 
         {/* Skill focus + objectives */}
-        <div style={{background:C.navy,borderRadius:5,padding:"16px 20px",marginBottom:18}}>
+        <div style={{background:C.navy,borderRadius:R.md,padding:"16px 20px",marginBottom:14}}>
           <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>What you're practising</div>
           <div style={{fontWeight:800,color:"#fff",fontSize:16,marginBottom:10}}>{scenario.skillFocus}</div>
           <div style={{display:"flex",flexDirection:"column",gap:5}}>
@@ -3957,6 +4481,33 @@ If the opportunity being discussed is in their sector, acknowledge it naturally.
             ))}
           </div>
         </div>
+
+        {/* Assessment criteria — good vs great */}
+        {(()=>{
+          const critKeys = scenario.activeCriteria || SCENARIO_CRITERIA[scenarioKey] || [];
+          const crits = critKeys.map(k=>ALL_CRITERIA[k]).filter(Boolean);
+          if(!crits.length) return null;
+          return(
+            <div style={{background:C.white,borderRadius:R.lg,border:`1px solid ${C.border}`,padding:"16px 20px",marginBottom:18}}>
+              <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1.5,marginBottom:12}}>You'll be assessed on</div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {crits.map((c,i)=>(
+                  <div key={i} style={{display:"grid",gridTemplateColumns:"120px 1fr 1fr",gap:8,alignItems:"start",paddingBottom:i<crits.length-1?10:0,borderBottom:i<crits.length-1?`1px solid ${C.bg}`:"none"}}>
+                    <div style={{fontWeight:700,color:C.navy,fontSize:12}}>{c.label}</div>
+                    <div>
+                      <div style={{fontSize:9,fontWeight:700,color:C.amber,textTransform:"uppercase",letterSpacing:1,marginBottom:2}}>Good</div>
+                      <div style={{fontSize:11,color:C.text,lineHeight:1.45}}>{c.good}</div>
+                    </div>
+                    <div>
+                      <div style={{fontSize:9,fontWeight:700,color:C.green,textTransform:"uppercase",letterSpacing:1,marginBottom:2}}>Great</div>
+                      <div style={{fontSize:11,color:C.text,lineHeight:1.45}}>{c.great}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {brief.briefType==="limited" && (
           <div style={{background:"#FEF3C7",border:"1px solid #FDE68A",borderRadius:14,padding:"14px 18px",marginBottom:18,display:"flex",gap:12,alignItems:"flex-start"}}>
@@ -4347,6 +4898,52 @@ If the opportunity being discussed is in their sector, acknowledge it naturally.
           {/* ── TAB: OVERVIEW ── */}
           {activeDebriefTab==="overview" && (
             <div style={{animation:"fadeUp 0.3s ease both"}}>
+
+              {/* ── CRITERION SCORECARD — good to great ── */}
+              {result.criterionScores?.length > 0 && (
+                <div style={{background:C.white,borderRadius:5,border:`1px solid ${C.border}`,padding:"18px 22px",marginBottom:16}}>
+                  <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1.5,marginBottom:16}}>Your scorecard — this session</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                    {result.criterionScores.map((c,i)=>{
+                      const s = c.score || 0;
+                      const col = s>=80?C.green:s>=65?C.purple:s>=50?C.amber:"#991B1B";
+                      const bg  = s>=80?C.greenBg:s>=65?C.lavPale:s>=50?C.amberBg:"#FEE2E2";
+                      const border = s>=80?"#BBF7D0":s>=65?C.lavSoft:s>=50?"#FDE68A":"#FECACA";
+                      return(
+                        <div key={i} style={{paddingBottom:i<result.criterionScores.length-1?14:0,borderBottom:i<result.criterionScores.length-1?`1px solid ${C.bg}`:"none"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:6}}>
+                            <div style={{flex:1}}>
+                              <div style={{fontWeight:700,color:C.navy,fontSize:13}}>{c.label}</div>
+                            </div>
+                            <div style={{background:bg,border:`1px solid ${border}`,borderRadius:999,padding:"3px 14px",flexShrink:0}}>
+                              <span style={{fontSize:14,fontWeight:900,color:col}}>{s}</span>
+                              <span style={{fontSize:10,color:col,fontWeight:600}}>/100</span>
+                            </div>
+                          </div>
+                          <div style={{height:5,background:C.bg,borderRadius:999,overflow:"hidden",marginBottom:8}}>
+                            <div style={{height:"100%",width:`${s}%`,background:col,borderRadius:999,transition:"width 0.7s ease"}}/>
+                          </div>
+                          {c.what_you_did_well && (
+                            <div style={{display:"flex",gap:8,marginBottom:4}}>
+                              <span style={{color:C.green,fontSize:13,flexShrink:0}}>✓</span>
+                              <p style={{fontSize:12,color:C.text,lineHeight:1.55,margin:0}}>{c.what_you_did_well}</p>
+                            </div>
+                          )}
+                          {c.path_to_great && (
+                            <div style={{display:"flex",gap:8,background:C.lavPale,borderRadius:5,padding:"8px 10px",marginTop:4}}>
+                              <span style={{color:C.purple,fontSize:13,flexShrink:0}}>→</span>
+                              <div>
+                                <div style={{fontSize:9,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:1,marginBottom:2}}>Path to great</div>
+                                <p style={{fontSize:12,color:C.navy,lineHeight:1.55,margin:0}}>{c.path_to_great}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* ── CALL ANALYTICS STRIP ── */}
               {(() => {
@@ -4958,40 +5555,61 @@ function pushRoleplayToManager(rpEntry, parsed, profile) {
 }
 
 async function scoreCall(transcript, scenario, profile, setResult, setPhase) {
-  const ctx = profile ? `Recruiter: ${profile.focus}, ${profile.billings}. Challenge: "${profile.ownChallenge||profile.challenge}".` : "";
-  const brief = `Role: ${scenario.brief.role} at ${scenario.brief.company}. Package: ${scenario.brief.package}.`;
+  const ctx = profile ? `Recruiter sector: ${profile.focus || "General"}, billings: ${profile.billings || "not stated"}. Challenge: "${profile.ownChallenge||profile.challenge||"not stated"}".` : "";
+  const overlay = profile?.focus ? (SECTOR_PERSONA_OVERLAYS[profile.focus] || null) : null;
+  const brief = overlay
+    ? `Sector: ${overlay.world}. Skill being tested: ${scenario.skillFocus}.`
+    : `Role: ${scenario.brief?.role || scenario.skillFocus} at ${scenario.brief?.company || "company in brief"}. Skill: ${scenario.skillFocus}.`;
 
-  const prompt = `You are Scott, a recruitment sales coach. Give post-call coaching on this roleplay.
+  const scenarioId = Object.keys(SCENARIOS).find(k=>SCENARIOS[k]===scenario);
+  const activeCritKeys = scenario.activeCriteria || SCENARIO_CRITERIA[scenarioId] || ["openingHook","discoveryDepth","activeListening","objectionHandling","closingStrength"];
+  const activeCrit = activeCritKeys.map(k=>ALL_CRITERIA[k]).filter(Boolean);
+  const criteriaBlock = activeCrit.map(c=>`- ${c.label}: Good = "${c.good}" | Great = "${c.great}"`).join("\n");
+
+  const prompt = `You are Scott, a senior recruitment sales coach. Your job is to take recruiters from good to great — not to critique them, but to identify the one or two specific behaviour changes that will have the highest immediate impact on their calls.
 
 ${ctx}
 SCENARIO: ${brief}
 DIFFICULTY: ${scenario.difficulty||"beginner"}
+SKILL FOCUS: ${scenario.skillFocus}
+
+ACTIVE ASSESSMENT CRITERIA FOR THIS ROLEPLAY:
+${criteriaBlock}
 
 TRANSCRIPT:
 ${transcript}
 
-Analyse using SPIN Selling (situation/problem/implication/need-payoff questions), Challenger Sale (reframing), active listening signals, and objection handling frameworks. Score behaviours not intentions — what actually happened in the transcript.
+COACHING PHILOSOPHY:
+- Score honestly based on what was demonstrated — not on intent
+- Never score any criterion below 40 unless the recruiter made no attempt whatsoever
+- Lead with genuine strengths before identifying gaps
+- For every gap, give ONE specific behaviour change framed as an opportunity, not a criticism
+- The goal is "you did X well — here's the one thing that would take this from good to great"
+- Use the candidate's actual name from the transcript when referencing moments
 
 Return ONLY this JSON (no markdown, no extra text):
 {
-  "score": 65,
+  "score": 68,
   "verdict": "On Track",
-  "summary": "2-3 sentences: one genuine strength with a verbatim quote, one clear area to develop, one specific next step.",
+  "summary": "2-3 sentences: open with one genuine strength (include verbatim recruiter quote), then name the single highest-impact change. Frame as an opportunity.",
   "coachSummary": "same as summary",
-  "topWin": "verbatim recruiter line that showed real skill",
-  "topMiss": {"candidateLine": "verbatim signal they gave", "recruiterLine": "what recruiter said instead", "betterResponse": "exact words to use next time — framed as opportunity not criticism"},
-  "talkRatio": {"recruiter": 55, "candidate": 45},
+  "topWin": "verbatim recruiter line that showed real skill — quote it exactly",
+  "topMiss": {"candidateLine": "verbatim signal the candidate gave that was missed", "recruiterLine": "what the recruiter said instead", "betterResponse": "exact words Scott would suggest — framed as 'try this next time'"},
+  "talkRatio": {"recruiter": 55, "candidate": 45, "note": "1 sentence on whether talk ratio helped or hindered"},
+  "criterionScores": [
+    {"key": "openingHook", "label": "Opening & Permission", "score": 65, "what_you_did_well": "1 sentence on a specific strength", "path_to_great": "1 sentence — the exact one change that closes the gap from good to great"}
+  ],
   "frameworks": [
     {"name": "Opening & Permission", "score": 60, "feedback": "1 sentence — specific to this call"},
-    {"name": "Discovery (SPIN)", "score": 50, "feedback": "1 sentence — which levels reached"},
+    {"name": "Discovery (SPIN)", "score": 50, "feedback": "1 sentence — which SPIN levels were reached"},
     {"name": "Listening & Signals", "score": 65, "feedback": "1 sentence — specific moment"},
-    {"name": "Objection Handling", "score": 70, "feedback": "1 sentence or n/a if no objections"},
-    {"name": "Commitment & Close", "score": 55, "feedback": "1 sentence — what was agreed"}
+    {"name": "Objection Handling", "score": 70, "feedback": "1 sentence or 'No objections arose in this session'"},
+    {"name": "Commitment & Close", "score": 55, "feedback": "1 sentence — what was agreed or what was missed"}
   ],
   "methodologyScores": {"openingHook": 60, "permissionAsked": 50, "discoveryDepth": 55, "listeningSignals": 65, "objectionHandling": 70, "closingStrength": 55, "talkRatioScore": 60, "toneAndRapport": 70, "questioningFunnel": 50, "valueArticulation": 60, "momentumControl": 65}
 }
 
-Fill every field with real observations from the transcript above.`;
+Rules for criterionScores: include ONLY the active criteria listed above (${activeCritKeys.join(", ")}). Score each 40–100. Both "what_you_did_well" and "path_to_great" must reference specific moments from the transcript. Fill every field with real observations.`;
 
   try {
     const fb = await callAPI([{role:"user", content:prompt}], null, {model:"claude-sonnet-4-6", max_tokens:1200, temperature:0});
@@ -4999,13 +5617,19 @@ Fill every field with real observations from the transcript above.`;
     setResult(parsed);
     const rpEntry = {
       scenarioKey: scenario.skillFocus,
+      scenarioId: Object.keys(SCENARIOS).find(k=>SCENARIOS[k]===scenario) || "custom",
+      moduleId: scenario.moduleId || null,
       score: parsed.score,
       verdict: parsed.verdict,
       coachSummary: parsed.coachSummary || parsed.summary,
       savedAt: new Date().toISOString(),
       frameworks: parsed.frameworks||[],
+      criterionScores: parsed.criterionScores||[],
+      sectorContext: profile?.focus || null,
+      difficulty: scenario.difficulty || "beginner",
     };
     saveRoleplay(rpEntry);
+    pushRoleplayToManager(rpEntry, parsed, profile);
     setPhase("debrief");
   } catch(e) {
     console.error("scoreCall error:", e);
@@ -5239,18 +5863,25 @@ function ScottOnboarding({onComplete, existingProfile=null}){
   const [showAssessment, setShowAssessment] = useState(false);
   const [assessmentDone, setAssessmentDone] = useState(false);
   const [profile, setProfile] = useState(existingProfile || {
-    name:"", focus:"", billings:"", challenge:"", ownChallenge:"", biggestWin:""
+    name:"", focus:"", billings:"", challenge:"", ownChallenge:"", biggestWin:"",
+    goalDate:"", seedVariant: Math.floor(Math.random()*6),
   });
 
   const update = (k,v) => setProfile(p=>({...p,[k]:v}));
 
+  const sectorOptions = Object.keys(SECTOR_PERSONA_OVERLAYS).filter(k=>k!=="Generic");
+  const challengeOptions = ["Starting conversations","Discovery","Handling objections","Closing","Confidence and consistency"];
+
   const steps = [
-    {id:"name",    label:"Your name",            field:"name",         placeholder:"e.g. Alex Chen"},
-    {id:"focus",   label:"Your recruitment focus",field:"focus",        placeholder:"e.g. Tech, Sales, Finance"},
-    {id:"billing", label:"Annual billings",       field:"billings",     placeholder:"e.g. $250k, $500k+"},
-    {id:"challenge",label:"Your category challenge",field:"challenge",  placeholder:"e.g. Candidate objections, cold calling"},
+    {id:"name",    label:"Your name",            field:"name",       placeholder:"e.g. Alex Chen"},
+    {id:"focus",   label:"Your recruitment sector", field:"focus",   placeholder:"e.g. Tech & Engineering, Accounting & Finance",
+     options: sectorOptions},
+    {id:"billing", label:"Annual billings",       field:"billings",  placeholder:"e.g. $250k, $500k+"},
+    {id:"challenge",label:"What do you most want to improve?", field:"challenge", placeholder:"Choose your focus area",
+     options: challengeOptions},
     {id:"ownWords",label:"In your own words — what's making this hard?",field:"ownChallenge",placeholder:"Be honest — this is just for Scott"},
-    {id:"win",     label:"Your biggest recent win",field:"biggestWin",  placeholder:"What went well recently?"},
+    {id:"goal",    label:"When do you want to see improvement by?",field:"goalDate",placeholder:"e.g. 3 months, by end of quarter",
+     subtext:"Scott will build your weekly pace around this."},
   ];
 
   if(showAssessment) return(
@@ -5283,15 +5914,31 @@ function ScottOnboarding({onComplete, existingProfile=null}){
         {currentStep && (
           <div style={{background:C.white,borderRadius:20,padding:"28px 24px 24px",border:`1px solid ${C.border}`,marginBottom:16}}>
             <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>Step {step+1} of {steps.length}</div>
-            <label style={{display:"block",fontSize:15,fontWeight:700,color:C.navy,marginBottom:12}}>{currentStep.label}</label>
-            <input
-              value={profile[currentStep.field]||""}
-              onChange={e=>update(currentStep.field,e.target.value)}
-              onKeyDown={e=>{ if(e.key==="Enter" && canContinue){ isLast ? (!assessmentDone ? setShowAssessment(true) : onComplete(profile)) : setStep(s=>s+1); }}}
-              placeholder={currentStep.placeholder}
-              autoFocus
-              style={{width:"100%",background:C.bg,border:`2px solid ${C.border}`,borderRadius:5,padding:"12px 16px",fontSize:14,color:C.text,outline:"none",fontFamily:"'Inter',sans-serif",boxSizing:"border-box",transition:"border-color 0.2s"}}
-            />
+            <label style={{display:"block",fontSize:15,fontWeight:700,color:C.navy,marginBottom:4}}>{currentStep.label}</label>
+            {currentStep.subtext && <div style={{fontSize:12,color:C.muted,marginBottom:12}}>{currentStep.subtext}</div>}
+            {!currentStep.subtext && <div style={{marginBottom:12}}/>}
+            {currentStep.options ? (
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {currentStep.options.map(opt=>{
+                  const active = profile[currentStep.field]===opt;
+                  return(
+                    <button key={opt} onClick={()=>update(currentStep.field,opt)}
+                      style={{background:active?C.purple:C.bg,color:active?"#fff":C.text,border:`2px solid ${active?C.purple:C.border}`,borderRadius:999,padding:"8px 16px",fontSize:13,fontWeight:active?700:400,cursor:"pointer",transition:"all 0.15s",fontFamily:"'Inter',sans-serif"}}>
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <input
+                value={profile[currentStep.field]||""}
+                onChange={e=>update(currentStep.field,e.target.value)}
+                onKeyDown={e=>{ if(e.key==="Enter" && canContinue){ isLast ? (!assessmentDone ? setShowAssessment(true) : onComplete(profile)) : setStep(s=>s+1); }}}
+                placeholder={currentStep.placeholder}
+                autoFocus
+                style={{width:"100%",background:C.bg,border:`2px solid ${C.border}`,borderRadius:5,padding:"12px 16px",fontSize:14,color:C.text,outline:"none",fontFamily:"'Inter',sans-serif",boxSizing:"border-box",transition:"border-color 0.2s"}}
+              />
+            )}
           </div>
         )}
 
@@ -5305,7 +5952,6 @@ function ScottOnboarding({onComplete, existingProfile=null}){
           onClick={()=>{
             if(!canContinue) return;
             if(isLast){
-              if(!assessmentDone){ setShowAssessment(true); return; }
               onComplete(profile);
             } else {
               setStep(s=>s+1);
@@ -5313,7 +5959,7 @@ function ScottOnboarding({onComplete, existingProfile=null}){
           }}
           disabled={!canContinue}
           style={{width:"100%",background:canContinue?C.purple:C.border,color:canContinue?"#fff":C.muted,border:"none",borderRadius:999,padding:"13px",fontWeight:700,fontSize:14,cursor:canContinue?"pointer":"not-allowed",transition:"all 0.2s"}}>
-          {isLast ? (assessmentDone ? "Start learning →" : "Take baseline assessment →") : "Continue →"}
+          {isLast ? "Build my learning path →" : "Continue →"}
         </button>
 
         {step > 0 && (
@@ -5430,7 +6076,7 @@ RESPONSE STRUCTURE:
                 <div key={i} style={{display:"flex",gap:8,justifyContent:m.role==="user"?"flex-end":"flex-start",alignItems:"flex-start"}}>
                   {m.role==="assistant"&&<Av ini="SC" col={C.lavSoft} sz={28}/>}
                   <div style={{
-                    background:m.role==="user"?C.navy:"rgba(237,233,254,0.5)",
+                    background:m.role==="user"?C.navy:C.lavPale,
                     color:m.role==="user"?"#fff":C.text,
                     borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px",
                     padding:"10px 14px",fontSize:13,lineHeight:1.65,maxWidth:"82%",
@@ -6819,6 +7465,45 @@ export default function App(){
 
   useEffect(()=>{
     (async()=>{
+      // PKCE email confirmation callback: Supabase redirects back with ?code=
+      const urlParams = new URLSearchParams(window.location.search);
+      const authCode = urlParams.get('code');
+      if(authCode){
+        window.history.replaceState(null, '', window.location.pathname);
+        try {
+          const u = await sb.exchangeCode(authCode);
+          if(u){
+            setUser(u);
+            let pending = null;
+            try { pending = JSON.parse(localStorage.getItem('heyscott_pending_signup') || 'null'); } catch {}
+            localStorage.removeItem('heyscott_pending_signup');
+            const role = pending?.role || 'individual';
+            setUserRole(role);
+            let p = await sbGetProfile(u.id);
+            if(!p && pending){
+              await sbSaveProfile(u.id, { name: pending.name || '', role, focus:"", billings:"", challenge:"", ownChallenge:"", ...(pending.company_id ? {company_id: pending.company_id} : {}) });
+              if(role === 'manager' && pending.teamName){
+                try {
+                  const tok = sb._token;
+                  await fetch('/api/create-team', {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ userId: u.id, teamName: pending.teamName, token: tok }),
+                  });
+                } catch {}
+              }
+              p = await sbGetProfile(u.id);
+            }
+            if(p) setProfile(p);
+            go(role === 'manager' ? 'team' : 'setup');
+            setAuthLoading(false);
+            return;
+          }
+        } catch {}
+        go('landing');
+        setAuthLoading(false);
+        return;
+      }
+
       const params = new URLSearchParams(window.location.search);
       const inviteCompany = params.get('company');
       if(inviteCompany){ go('invite'); setAuthLoading(false); return; }
