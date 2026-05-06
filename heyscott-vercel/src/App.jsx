@@ -2392,6 +2392,7 @@ function AssessmentFlow({onComplete, onBack}){
   const [scoring, setScoring] = useState(false);
   const [smartGoals, setSmartGoals] = useState(null);
   const [goalsLoading, setGoalsLoading] = useState(false);
+  const [showPanel, setShowPanel] = useState(false);
   const chatRef = useRef(null);
   const inputRef = useRef(null);
   const sc = ASSESSMENT_SCENARIOS[scIdx];
@@ -2541,41 +2542,128 @@ Return ONLY valid JSON:
     </div>
   );
 
-  if(phase==='chat') return(
-    <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",fontFamily:"'Inter',sans-serif"}}>
-      <div style={{background:C.white,borderBottom:`1px solid ${C.border}`,padding:"12px 20px",display:"flex",alignItems:"center",gap:12}}>
-        <div style={{width:36,height:36,borderRadius:"50%",background:sc.col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff"}}>{sc.ini}</div>
-        <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:C.navy}}>{sc.name}</div><div style={{fontSize:12,color:C.muted}}>{sc.title}</div></div>
-        <div style={{fontSize:11,color:C.muted,background:C.secondary,borderRadius:999,padding:"3px 10px",marginRight:8}}>Scenario {sc.level}</div>
+  if(phase==='chat'){
+    const isMobileView = typeof window !== "undefined" && window.innerWidth < 768;
+    return(
+    <div style={{height:"100vh",background:C.bg,display:"flex",flexDirection:"column",fontFamily:"'Inter',sans-serif"}}>
+
+      {/* Full-width header */}
+      <div style={{background:C.white,borderBottom:`1px solid ${C.border}`,padding:"12px 20px",display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+        {isMobileView&&(
+          <button onClick={()=>setShowPanel(v=>!v)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:5,padding:"5px 8px",cursor:"pointer",fontSize:11,fontWeight:700,color:C.muted,marginRight:4}}>
+            {showPanel?"✕ Hide":"☰ Brief"}
+          </button>
+        )}
+        <div style={{width:36,height:36,borderRadius:"50%",background:sc.col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{sc.ini}</div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:14,fontWeight:700,color:C.navy}}>{sc.name}</div>
+          <div style={{fontSize:12,color:C.muted}}>{sc.title}</div>
+        </div>
+        <div style={{fontSize:11,color:C.muted,background:C.secondary,borderRadius:999,padding:"3px 10px",marginRight:8,whiteSpace:"nowrap"}}>Scenario {sc.level}</div>
         <button onClick={endCall} disabled={msgs.length<2||chatLoading}
-          style={{background:msgs.length>=2&&!chatLoading?"#FEE2E2":"#f3f4f6",color:msgs.length>=2&&!chatLoading?"#991B1B":C.muted,border:"none",borderRadius:999,padding:"8px 16px",fontWeight:700,fontSize:12,cursor:msgs.length>=2&&!chatLoading?"pointer":"not-allowed"}}>
+          style={{background:msgs.length>=2&&!chatLoading?"#FEE2E2":"#f3f4f6",color:msgs.length>=2&&!chatLoading?"#991B1B":C.muted,border:"none",borderRadius:999,padding:"8px 16px",fontWeight:700,fontSize:12,cursor:msgs.length>=2&&!chatLoading?"pointer":"not-allowed",whiteSpace:"nowrap"}}>
           End call
         </button>
       </div>
-      <div ref={chatRef} style={{flex:1,overflowY:"auto",padding:"20px",display:"flex",flexDirection:"column",gap:12,maxWidth:680,width:"100%",margin:"0 auto"}}>
-        {chatLoading&&msgs.length===0 && <div style={{fontSize:13,color:C.muted,textAlign:"center",marginTop:40}}>Connecting…</div>}
-        {msgs.map((m,i)=>(
-          <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",alignItems:"flex-start",gap:8}}>
-            {m.role==="ai" && <div style={{width:28,height:28,borderRadius:"50%",background:sc.col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff",flexShrink:0,marginTop:2}}>{sc.ini}</div>}
-            <div style={{maxWidth:"75%",background:m.role==="user"?C.purple:C.white,color:m.role==="user"?"#fff":C.text,padding:"10px 14px",borderRadius:m.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px",fontSize:13,lineHeight:1.5,border:m.role==="ai"?`1px solid ${C.border}`:"none"}}>{m.content}</div>
+
+      {/* Body: left panel + chat */}
+      <div style={{flex:1,display:"flex",overflow:"hidden",position:"relative"}}>
+
+        {/* Left panel */}
+        <div style={{
+          width: isMobileView ? "100%" : 280,
+          display: (!isMobileView || showPanel) ? "flex" : "none",
+          flexDirection:"column",
+          gap:16,
+          background:C.white,
+          borderRight: isMobileView ? "none" : `1px solid ${C.border}`,
+          borderBottom: isMobileView ? `1px solid ${C.border}` : "none",
+          padding:"20px 16px",
+          overflowY:"auto",
+          flexShrink:0,
+          position: isMobileView ? "absolute" : "static",
+          top: 0, left: 0, right: 0, zIndex: isMobileView ? 30 : "auto",
+          boxShadow: isMobileView ? "0 4px 16px rgba(0,0,0,0.08)" : "none",
+        }}>
+
+          {/* Scenario progress */}
+          <div>
+            <div style={{display:"flex",gap:4,marginBottom:10}}>
+              {ASSESSMENT_SCENARIOS.map((_,i)=>(
+                <div key={i} style={{flex:1,height:4,borderRadius:999,background:i<scIdx?C.purple:i===scIdx?C.purple:C.border,opacity:i<scIdx?0.45:i===scIdx?1:0.2}}/>
+              ))}
+            </div>
+            <div style={{fontSize:9,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:1.5}}>Assessment · Scenario {sc.level}</div>
           </div>
-        ))}
-        {chatLoading&&msgs.length>0 && <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:28,height:28,borderRadius:"50%",background:sc.col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff"}}>{sc.ini}</div><div style={{fontSize:13,color:C.muted}}>…</div></div>}
-      </div>
-      <div style={{background:C.white,borderTop:`1px solid ${C.border}`,padding:"12px 20px"}}>
-        <div style={{maxWidth:680,margin:"0 auto",display:"flex",gap:10}}>
-          <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
-            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
-            placeholder="What do you say?" disabled={chatLoading||msgs.length===0}
-            style={{flex:1,border:`1px solid ${C.border}`,borderRadius:999,padding:"10px 16px",fontSize:13,outline:"none",background:C.bg,color:C.text,fontFamily:"'Inter',sans-serif"}}/>
-          <button onClick={send} disabled={!input.trim()||chatLoading}
-            style={{background:input.trim()&&!chatLoading?C.purple:C.border,color:input.trim()&&!chatLoading?"#fff":C.muted,border:"none",borderRadius:999,padding:"10px 20px",fontWeight:700,fontSize:13,cursor:input.trim()&&!chatLoading?"pointer":"not-allowed"}}>
-            Send
-          </button>
+
+          <div style={{borderTop:`1px solid ${C.border}`}}/>
+
+          {/* Who you're calling */}
+          <div>
+            <div style={{fontSize:9,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Who you're calling</div>
+            <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:10}}>
+              <div style={{width:40,height:40,borderRadius:"50%",background:sc.col,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:800,fontSize:14,flexShrink:0}}>{sc.ini}</div>
+              <div>
+                <div style={{fontWeight:800,color:C.navy,fontSize:14}}>{sc.name}</div>
+                <div style={{fontSize:11,color:C.muted,lineHeight:1.4}}>{sc.title}</div>
+                <div style={{fontSize:11,color:C.muted}}>{sc.company}</div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{borderTop:`1px solid ${C.border}`}}/>
+
+          {/* The opportunity */}
+          <div>
+            <div style={{fontSize:9,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1.5,marginBottom:8}}>Your brief</div>
+            <p style={{fontSize:12,color:C.text,lineHeight:1.65,margin:0}}>{sc.context}</p>
+          </div>
+
+          <div style={{borderTop:`1px solid ${C.border}`}}/>
+
+          {/* Scored on */}
+          <div>
+            <div style={{fontSize:9,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Scored on</div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {["Opening","Rapport","Open questions","Discovery","Closing"].map((dim,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:5,height:5,borderRadius:"50%",background:C.purple,flexShrink:0}}/>
+                  <span style={{fontSize:12,color:C.text}}>{dim}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right: messages + input */}
+        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden",minWidth:0}}>
+          <div ref={chatRef} style={{flex:1,overflowY:"auto",padding:"20px",display:"flex",flexDirection:"column",gap:12}}>
+            {chatLoading&&msgs.length===0 && <div style={{fontSize:13,color:C.muted,textAlign:"center",marginTop:40}}>Connecting…</div>}
+            {msgs.map((m,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",alignItems:"flex-start",gap:8}}>
+                {m.role==="ai" && <div style={{width:28,height:28,borderRadius:"50%",background:sc.col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff",flexShrink:0,marginTop:2}}>{sc.ini}</div>}
+                <div style={{maxWidth:"75%",background:m.role==="user"?C.purple:C.white,color:m.role==="user"?"#fff":C.text,padding:"10px 14px",borderRadius:m.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px",fontSize:13,lineHeight:1.5,border:m.role==="ai"?`1px solid ${C.border}`:"none"}}>{m.content}</div>
+              </div>
+            ))}
+            {chatLoading&&msgs.length>0 && <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:28,height:28,borderRadius:"50%",background:sc.col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff"}}>{sc.ini}</div><div style={{fontSize:13,color:C.muted}}>…</div></div>}
+          </div>
+          <div style={{background:C.white,borderTop:`1px solid ${C.border}`,padding:"12px 20px",flexShrink:0}}>
+            <div style={{display:"flex",gap:10}}>
+              <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
+                onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
+                placeholder="What do you say?" disabled={chatLoading||msgs.length===0}
+                style={{flex:1,border:`1px solid ${C.border}`,borderRadius:999,padding:"10px 16px",fontSize:13,outline:"none",background:C.bg,color:C.text,fontFamily:"'Inter',sans-serif"}}/>
+              <button onClick={send} disabled={!input.trim()||chatLoading}
+                style={{background:input.trim()&&!chatLoading?C.purple:C.border,color:input.trim()&&!chatLoading?"#fff":C.muted,border:"none",borderRadius:999,padding:"10px 20px",fontWeight:700,fontSize:13,cursor:input.trim()&&!chatLoading?"pointer":"not-allowed"}}>
+                Send
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-  );
+    );
+  }
 
   if(phase==='scoring') return(
     <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:24,fontFamily:"'Inter',sans-serif"}}>
