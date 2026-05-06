@@ -32,4 +32,11 @@ export async function callAPI(messages, system, opts={}) {
   if(!d.content?.[0]?.text) throw new Error("No response received — please try again");
   return d.content[0].text;
 }
-export function parseJSON(t){return JSON.parse(t.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim());}
+export function parseJSON(t){
+  const s = t.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+  try { return JSON.parse(s); } catch(_){
+    const m = s.match(/\{[\s\S]*\}/);
+    if(m) return JSON.parse(m[0]);
+    throw new Error("Response was not valid JSON — the AI may have added extra text around the JSON object.");
+  }
+}

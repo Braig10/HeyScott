@@ -270,7 +270,9 @@ DIFFICULTY CALIBRATION (recruiter is ${level}): ${difficulty}`;
         role: m.role==="user" ? "user" : "assistant",
         content: m.content
       }));
-      const resp = await callAPI(hist, buildPersonalisedSystem(scenario, profile), {model:"claude-sonnet-4-6", max_tokens:450, temperature:1});
+      // Custom scenarios are pre-tailored — skip sector overlay to avoid conflicting instructions
+      const systemPrompt = customScenario ? scenario.system : buildPersonalisedSystem(scenario, profile);
+      const resp = await callAPI(hist, systemPrompt, {model:"claude-sonnet-4-6", max_tokens:450, temperature:1});
       // Always strip [Coach:...] from AI response — all feedback goes to post-call debrief only
       const clean = resp.replace(/\[Coach:\s*.+?\]/gs,"").trim();
       const withAI = [...newMsgs, {role:"ai", content:clean, time:ts()}];
@@ -295,7 +297,12 @@ DIFFICULTY CALIBRATION (recruiter is ${level}): ${difficulty}`;
         });
       }, 400);
     } catch(e){
-      setMsgs(prev=>[...prev,{role:"ai", content:"Connection issue — please try again.", time:""}]);
+      const msg = e?.message || "";
+      const display = msg.includes("timed out") ? "Request timed out — please try again."
+        : msg.includes("overloaded") || msg.includes("529") ? "API busy — wait a moment and try again."
+        : "Connection issue — please try again.";
+      setMsgs(prev=>[...prev,{role:"ai", content:display, time:""}]);
+      console.error("[sendMessage]", e);
       processingRef.current = false;
       setLoading(false);
       setAvatarState("idle");

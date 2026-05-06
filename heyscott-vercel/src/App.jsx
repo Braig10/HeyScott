@@ -1660,11 +1660,11 @@ Return ONLY this JSON (no markdown):
     "personality": "2 sentences on personality",
     "hook": "what makes them moveable — their hidden frustration or motivation"
   },
-  "system": "You are playing [name], [title] at [company]. [2-3 sentences on their situation and what they haven't told anyone]. PERSONALITY: [their communication style]. RESPONSE STYLE: Keep initial responses SHORT (1-2 sentences). Warm up if the recruiter earns it. Sound completely natural — use contractions, hesitations. React to what they actually say. CALL FLOW: [opening line and call arc]. Opening line when called: \\"[realistic opening]\\"",
+  "system": "You are playing [full name], [their title] at [their company]. [2-3 sentences about their work situation and what they have not told anyone]. PERSONALITY: [their communication style in 2 sentences]. RESPONSE STYLE: Keep initial responses SHORT — 1 to 2 sentences. Warm up only if the recruiter earns it. Sound completely natural — use contractions and hesitations. React to what they actually say. CALL FLOW: [brief description of how the call should develop]. Opening line when picked up: [write their first words naturally, no quotes needed]",
   "activeCriteria": ["openingHook", "discoveryDepth"]
 }`;
     try {
-      const resp = await callAPI([{role:"user",content:prompt}],null,{model:"claude-sonnet-4-6",max_tokens:1200,temperature:0.7});
+      const resp = await callAPI([{role:"user",content:prompt}],null,{model:"claude-sonnet-4-6",max_tokens:1600,temperature:0.7});
       const parsed = parseJSON(resp);
       if(parsed?.candidate && parsed?.system){
         setCustomRP({input, loading:false, scenario:parsed, preview:parsed.preview, confirmed:false});
@@ -1672,7 +1672,13 @@ Return ONLY this JSON (no markdown):
         setCustomRP({input,loading:false,error:"Couldn't build that scenario — try describing it differently."});
       }
     } catch(e){
-      setCustomRP({input,loading:false,error:"Connection issue — please try again."});
+      const msg = e?.message || "";
+      const display = msg.includes("timed out") ? "Request timed out — please try again."
+        : msg.includes("not valid JSON") ? "Couldn't parse the scenario — please try again."
+        : msg.includes("API error") || msg.includes("overloaded") ? "API busy — wait a moment and try again."
+        : "Couldn't build that scenario — please try again.";
+      setCustomRP({input,loading:false,error:display});
+      console.error("[customRP]", e);
     }
   };
 
