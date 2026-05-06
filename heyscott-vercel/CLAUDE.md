@@ -206,15 +206,33 @@ These must be present in curriculum content, coaching responses, and marketing c
 
 ## 8. Coaching Frameworks — Always Applied, Never Named to the User
 
-| Framework | How it appears |
+Full methodology specification: **`METHODOLOGY.md`** — this is the governing document for all assessment, scoring, and training logic. Read it before touching any roleplay, assessment, scoring, or SMART goal code.
+
+**Active frameworks (applied in every roleplay and coaching response):**
+
+| Framework | How it appears in product |
 |---|---|
-| SPIN Selling | Situation → Problem → Implication → Need-Payoff question sequencing |
-| Challenger Sale | Reframe candidate's thinking, don't just respond to it |
-| Permission-based opening | Earn the right to continue before pitching |
-| Acknowledge-Bridge-Redirect (ABR) | Objection handling method |
-| Commitment ladder | Build micro-agreements before any close |
-| Three Layers of Motivation | Surface → Mid → Deep candidate motivators |
-| Question sequencing | Situational → Experiential → Evaluative → Aspirational |
+| **SPIN Selling** | Situation → Problem → Implication → Need-Payoff question sequencing; discovery scoring anchored here |
+| **Permission-Based Opening** | Hook → Reason → Permission structure; scored under Opening/Pitch dimension |
+| **Hook–Bridge–Ask** | Governs cold call structure; first 30 seconds scored for specificity and candidate-first framing |
+| **Three-Layer Discovery** | Layer 1 (surface) → Layer 2 (situational) → Layer 3 (personal drivers); discovery depth scoring |
+| **AEO Objection Handling** | Acknowledge → Explore → Overcome; replaces Acknowledge-Bridge-Redirect |
+| **Micro-Close / Next Step Close** | Always close on a low-friction next step, never on "are you interested?"; closing dimension |
+| **Mirror → Lead (Rapport Calibration)** | Match candidate energy first, then lead; rapport dimension scoring |
+| **Commitment Ladder** | Build micro-agreements before any close |
+| **Question Sequencing** | Situational → Experiential → Evaluative → Aspirational |
+
+**The 5 scoring dimensions (used in assessment AND post-call debrief):**
+1. Opening / Pitch — specific hook + permission earned
+2. Rapport — calibrated to candidate energy, mirrors then leads
+3. Open Questions — WHO/WHAT/HOW/TELL ME questions that reach Layer 2–3
+4. Situation + Frustrations — discovery depth beyond surface facts
+5. Closing — concrete micro-close with named next step
+
+**Assessment level thresholds:**
+- Score 1–8 → Beginner → 3 modules unlocked
+- Score 9–12 → Intermediate → 4 modules unlocked
+- Score 13–15 → Advanced → 5 modules unlocked
 
 ---
 
@@ -243,3 +261,28 @@ These must be present in curriculum content, coaching responses, and marketing c
 - Background is always `hsl(40,20%,97%)` — never pure white, never grey
 - Icons: Lucide-style line-weight only, `h-4 w-4` default
 - Floating co-pilot FAB: 56px sage circle, bottom-right, every authenticated page
+
+---
+
+## 11. Assessment Architecture — Non-Negotiable Rules
+
+The baseline assessment is **three live roleplays** at escalating difficulty. Never revert to multiple-choice questions.
+
+**Three scenarios (in order):**
+1. **Beginner** — Marcus Webb (cooperative, passive, software sales, 2 years in role)
+2. **Intermediate** — Priya Nair (guarded, uses stock brush-offs, "happy where I am", pain point hidden beneath surface)
+3. **Advanced** — James Sutherland (Director-level, aggressive, dismissive, only responds to calm authority)
+
+**Candidate persona escalation rule:** Each level the candidate becomes more guarded, more dismissive, and more challenging. Warmth and enthusiasm fail at Level 3 — only composure and genuine insight work.
+
+**Assessment scores 5 dimensions, 1–5 each (max 15):**
+Opening/Pitch · Rapport · Open Questions · Situation+Frustrations · Closing
+
+**Score → skill level → module unlock count → SMART goals.**
+Full scoring rubric and SMART goal templates are in `METHODOLOGY.md`.
+
+**SMART goals are always:**
+- Generated from the two lowest-scoring dimensions
+- Structured as: Immediate (next 3 roleplays) + Important (next 2 weeks) + Long-term arc
+- Specific to the exact failure pattern observed, not generic advice
+- Written in Scott's voice — warm, direct, no jargon, one exact script included
