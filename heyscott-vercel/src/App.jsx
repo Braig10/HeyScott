@@ -11,6 +11,13 @@ import { PERSONA_VARIANTS, DIFFICULTY_MODIFIERS, SAMPLE_TRANSCRIPT, SCORE_DATA, 
 
 const getSbUrl = () => window._env?.SUPABASE_URL  || "";
 const getSbKey = () => window._env?.SUPABASE_ANON_KEY || "";
+
+// Safer than r.json() — handles empty bodies (204, edge timeouts) without throwing DOM exceptions
+async function sbJson(r) {
+  const text = await r.text();
+  if (!text.trim()) return {};
+  try { return JSON.parse(text); } catch(e) { throw new Error(`Unexpected response from Supabase (HTTP ${r.status}): ${text.slice(0,120)}`); }
+}
 const COMPANY_ID = "1775cff8-3650-4950-b578-88a24efcdf62";
 
 // PKCE helpers for Supabase email confirmation (Supabase removed Implicit flow)
@@ -46,21 +53,21 @@ const sb = {
       async select(cols="*", filters={}) {
         const params = new URLSearchParams({ select: cols, ...filters });
         const r = await ft(`${base}?${params}`, { headers: hdrs });
-        return r.json();
+        return sbJson(r);
       },
       async insert(data) {
         const r = await ft(base, { method:"POST", headers: hdrs, body: JSON.stringify(data) });
-        return r.json();
+        return sbJson(r);
       },
       async upsert(data, onConflict) {
         const url = onConflict ? `${base}?on_conflict=${onConflict}` : base;
         const r = await ft(url, { method:"POST", headers: sb.headers({ "Prefer":"return=representation,resolution=merge-duplicates" }), body: JSON.stringify(data) });
-        return r.json();
+        return sbJson(r);
       },
       async update(data, filters={}) {
         const params = new URLSearchParams(filters);
         const r = await ft(`${base}?${params}`, { method:"PATCH", headers: hdrs, body: JSON.stringify(data) });
-        return r.json();
+        return sbJson(r);
       },
     };
   },
@@ -68,12 +75,11 @@ const sb = {
   async signUp(email, password, meta={}) {
     const { verifier, challenge } = await generatePKCEPair();
     localStorage.setItem('pkce_verifier', verifier);
-    const c=new AbortController(); setTimeout(()=>c.abort(),5000);
     const r = await fetch(`${getSbUrl()}/auth/v1/signup`, {
       method:"POST", headers: this.headers(),
       body: JSON.stringify({ email, password, data: meta, code_challenge: challenge, code_challenge_method: 'S256' })
     });
-    const d = await r.json();
+    const d = await sbJson(r);
     if(d.access_token) { this._token = d.access_token; this._userId = d.user?.id; }
     return d;
   },
@@ -87,18 +93,17 @@ const sb = {
       headers: { 'Content-Type':'application/json', 'apikey': getSbKey() },
       body: JSON.stringify({ auth_code: code, code_verifier: verifier }),
     });
-    const d = await r.json();
+    const d = await sbJson(r);
     if(d.access_token) { this._token = d.access_token; this._userId = d.user?.id; this.saveSession(d.access_token, d.user?.id, d.refresh_token); return d.user || null; }
     return null;
   },
 
   async signIn(email, password) {
-    const c=new AbortController(); setTimeout(()=>c.abort(),5000);
     const r = await fetch(`${getSbUrl()}/auth/v1/token?grant_type=password`, {
       method:"POST", headers: this.headers(),
       body: JSON.stringify({ email, password })
     });
-    const d = await r.json();
+    const d = await sbJson(r);
     if(d.access_token) { this._token = d.access_token; this._userId = d.user?.id; }
     return d;
   },
@@ -122,7 +127,7 @@ const sb = {
         method:"POST", headers:{"Content-Type":"application/json","apikey":getSbKey()},
         body: JSON.stringify({refresh_token: this._refreshToken})
       });
-      const rd = await rr.json();
+      const rd = await sbJson(rr);
       if(rd.access_token) {
         const persist = !!localStorage.getItem("sb_session");
         this.saveSession(rd.access_token, rd.user?.id || this._userId, rd.refresh_token, persist);
@@ -130,7 +135,7 @@ const sb = {
       }
       this._token = null; return null;
     }
-    const d = await r.json();
+    const d = await sbJson(r);
     return d.id ? d : null;
   },
 
