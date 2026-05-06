@@ -22,4 +22,8 @@ export function loadManagerEmail() { try { return localStorage.getItem("heyscott
 export function saveManagerEmail(email) { try { localStorage.setItem("heyscott_manager_email_v1",email); } catch(e) {} }
 export function loadManagerReport() { try { const s=localStorage.getItem("heyscott_manager_report_v1"); return s?JSON.parse(s):null; } catch(e) { return null; } }
 export function saveManagerReport(r) { try { localStorage.setItem("heyscott_manager_report_v1",JSON.stringify(r)); } catch(e) {} }
-
+
+const PROFILE_KEY = 'heyscott_profile_v2';
+export function saveProfile(profile) { try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch(e){} }
+export function loadProfile() { try { const s = localStorage.getItem(PROFILE_KEY); if(s) return JSON.parse(s); } catch(e){} return null; }
+export function clearProfile() { try { localStorage.removeItem(PROFILE_KEY); } catch(e){} }
