@@ -2066,7 +2066,7 @@ function loadManagerReport() { try { const s=localStorage.getItem("heyscott_mana
 function saveManagerReport(r) { try { localStorage.setItem("heyscott_manager_report_v1",JSON.stringify(r)); } catch(e) {} }
 
 async function callAPI(messages, system, opts={}) {
-  const model      = opts.model      || "claude-haiku-4-5-20251001";
+  const model      = opts.model      || "claude-sonnet-4-6";
   const max_tokens = opts.max_tokens || 1000;
   const temperature = opts.temperature ?? 0.7;
   const body = {model, max_tokens, messages, temperature};
@@ -3012,7 +3012,7 @@ CONVERSATION RULES:
       const opener = await callAPI([{
         role:"user",
         content:`My energy today is ${energyLevel}/5 (${energyLabel}). Start the session.`
-      }], SYSTEM, {model:"claude-haiku-4-5-20251001", max_tokens:400});
+      }], SYSTEM, {model:"claude-sonnet-4-6", max_tokens:400});
       setMsgs([{role:"assistant",content:opener}]);
     } catch(e) {
       setMsgs([{role:"assistant",content:"I'm having trouble connecting right now. Please try again."}]);
@@ -3029,7 +3029,7 @@ CONVERSATION RULES:
     try {
       const reply = await callAPI(
         newMsgs.map(m=>({role:m.role,content:m.content})),
-        SYSTEM, {model:"claude-haiku-4-5-20251001", max_tokens:600}
+        SYSTEM, {model:"claude-sonnet-4-6", max_tokens:600}
       );
       const updatedMsgs = [...newMsgs,{role:"assistant",content:reply}];
       setMsgs(updatedMsgs);
@@ -3422,7 +3422,7 @@ Return ONLY this JSON (no markdown):
   "activeCriteria": ["openingHook", "discoveryDepth"]
 }`;
     try {
-      const resp = await callAPI([{role:"user",content:prompt}],null,{model:"claude-haiku-4-5-20251001",max_tokens:1200,temperature:0.7});
+      const resp = await callAPI([{role:"user",content:prompt}],null,{model:"claude-sonnet-4-6",max_tokens:1200,temperature:0.7});
       const parsed = parseJSON(resp);
       if(parsed?.candidate && parsed?.system){
         setCustomRP({input, loading:false, scenario:parsed, preview:parsed.preview, confirmed:false});
@@ -4321,7 +4321,7 @@ DIFFICULTY CALIBRATION (recruiter is ${level}): ${difficulty}`;
         role: m.role==="user" ? "user" : "assistant",
         content: m.content
       }));
-      const resp = await callAPI(hist, buildPersonalisedSystem(scenario, profile), {model:"claude-haiku-4-5-20251001", max_tokens:300, temperature:1});
+      const resp = await callAPI(hist, buildPersonalisedSystem(scenario, profile), {model:"claude-sonnet-4-6", max_tokens:450, temperature:1});
       // Always strip [Coach:...] from AI response — all feedback goes to post-call debrief only
       const clean = resp.replace(/\[Coach:\s*.+?\]/gs,"").trim();
       const withAI = [...newMsgs, {role:"ai", content:clean, time:ts()}];
@@ -5657,7 +5657,7 @@ async function generateSmartGoals(roleplays, profile, setGoals, setGenerating) {
   const profileCtx = profile ? `Recruiter: ${profile.focus}, ${profile.billings}, challenge: "${profile.ownChallenge || profile.challenge}"` : "";
   const prompt = `You are Scott. Based on these 3 roleplays, generate SMART development goals. ${profileCtx}\n\n${cycleSummary}\n${arcSummary}\n\nReturn ONLY valid JSON:\n{"cycleGoals":[{"priority":"immediate","title":"Short title","specific":"Exact behaviour","measurable":"How to measure","achievable":"Why reachable now","relevant":"Why matters","timebound":"Next 3 roleplays","coachNote":"1-2 sentences from Scott"},{"priority":"important","title":"...","specific":"...","measurable":"...","achievable":"...","relevant":"...","timebound":"Next 2 weeks","coachNote":"..."}],"longTermArc":{"pattern":"Recurring theme","trajectory":"positive|developing|needs_reset","arcGoal":"3-month goal","signalToWatch":"What indicates real breakthrough"},"generatedAt":"${new Date().toISOString()}"}\nPriority must be exactly "immediate", "important", or "developing".`;
   try {
-    const res = await callAPI([{role:"user", content:prompt}], null, {model:"claude-haiku-4-5-20251001", max_tokens:1000});
+    const res = await callAPI([{role:"user", content:prompt}], null, {model:"claude-sonnet-4-6", max_tokens:1000});
     const goals = parseJSON(res);
     saveSmartGoals(goals);
     setGoals(goals);
