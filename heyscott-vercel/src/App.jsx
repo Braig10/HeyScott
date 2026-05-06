@@ -1749,6 +1749,7 @@ async function generatePKCEPair() {
 const sb = {
   _token: null,
   _userId: null,
+  _refreshToken: null,
 
   headers(extra={}) {
     const key = getSbKey();
@@ -1810,7 +1811,7 @@ const sb = {
       body: JSON.stringify({ auth_code: code, code_verifier: verifier }),
     });
     const d = await r.json();
-    if(d.access_token) { this._token = d.access_token; this._userId = d.user?.id; this.saveSession(d.access_token, d.user?.id); return d.user || null; }
+    if(d.access_token) { this._token = d.access_token; this._userId = d.user?.id; this.saveSession(d.access_token, d.user?.id, d.refresh_token); return d.user || null; }
     return null;
   },
 
@@ -1827,24 +1828,40 @@ const sb = {
 
   async signOut() {
     await fetch(`${getSbUrl()}/auth/v1/logout`, { method:"POST", headers: this.headers() });
-    this._token = null; this._userId = null;
+    this._token = null; this._userId = null; this._refreshToken = null;
     localStorage.removeItem("sb_session");
+    sessionStorage.removeItem("sb_session");
   },
 
   async getUser() {
     if(!this._token) {
-      const saved = localStorage.getItem("sb_session");
-      if(saved) { const s = JSON.parse(saved); this._token = s.token; this._userId = s.userId; }
+      const raw = localStorage.getItem("sb_session") || sessionStorage.getItem("sb_session");
+      if(raw) { const s = JSON.parse(raw); this._token = s.token; this._userId = s.userId; this._refreshToken = s.refreshToken || null; }
     }
     if(!this._token) return null;
     const r = await fetch(`${getSbUrl()}/auth/v1/user`, { headers: this.headers() });
+    if(r.status === 401 && this._refreshToken) {
+      const rr = await fetch(`${getSbUrl()}/auth/v1/token?grant_type=refresh_token`, {
+        method:"POST", headers:{"Content-Type":"application/json","apikey":getSbKey()},
+        body: JSON.stringify({refresh_token: this._refreshToken})
+      });
+      const rd = await rr.json();
+      if(rd.access_token) {
+        const persist = !!localStorage.getItem("sb_session");
+        this.saveSession(rd.access_token, rd.user?.id || this._userId, rd.refresh_token, persist);
+        return rd.user || {id: this._userId};
+      }
+      this._token = null; return null;
+    }
     const d = await r.json();
     return d.id ? d : null;
   },
 
-  saveSession(token, userId) {
-    this._token = token; this._userId = userId;
-    localStorage.setItem("sb_session", JSON.stringify({ token, userId }));
+  saveSession(token, userId, refreshToken=null, persist=true) {
+    this._token = token; this._userId = userId; this._refreshToken = refreshToken;
+    const data = JSON.stringify({ token, userId, refreshToken });
+    if(persist) { localStorage.setItem("sb_session", data); sessionStorage.removeItem("sb_session"); }
+    else { sessionStorage.setItem("sb_session", data); localStorage.removeItem("sb_session"); }
   },
 };
 
@@ -2372,6 +2389,7 @@ function AuthCard({children, title, subtitle}){
 function LoginPage({go, onAuth}){
   const [email, setEmail]     = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
 
@@ -2382,7 +2400,7 @@ function LoginPage({go, onAuth}){
     try {
       const d = await sb.signIn(email.trim(), password);
       if(d.error || !d.access_token) { setError(d.error?.message || "Invalid email or password."); return; }
-      sb.saveSession(d.access_token, d.user?.id);
+      sb.saveSession(d.access_token, d.user?.id, d.refresh_token, rememberMe);
       const prof = await sbGetProfile(d.user.id);
       await onAuth(d.user, prof?.role || 'learner');
     } catch(e) {
@@ -2406,6 +2424,10 @@ function LoginPage({go, onAuth}){
             placeholder="••••••••"
             style={{width:"100%",border:`1px solid ${C.border}`,borderRadius:8,padding:"10px 14px",fontSize:13,color:C.text,outline:"none",background:C.bg,boxSizing:"border-box"}}/>
         </div>
+        <label style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:C.muted,cursor:"pointer",userSelect:"none"}}>
+          <input type="checkbox" checked={rememberMe} onChange={e=>setRememberMe(e.target.checked)} style={{accentColor:C.purple,width:14,height:14}}/>
+          Keep me logged in
+        </label>
         <button type="submit" disabled={loading||!email.trim()||!password}
           style={{background:C.purple,color:"#fff",border:"none",borderRadius:8,padding:"12px",fontWeight:700,fontSize:14,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,marginTop:4}}>
           {loading ? "Logging in…" : "Log in"}
@@ -5758,101 +5780,330 @@ function SmartGoalsPanel({profile}) {
 
 
 /* ══════════════════════════════════════════════════════════════
-   ROLEPLAY ASSESSMENT
+   BASELINE ASSESSMENT — 3 LIVE ROLEPLAY SCENARIOS
+   Methodology applied internally; no framework names shown to user.
 ══════════════════════════════════════════════════════════════ */
-function RoleplayAssessment({challenge, onComplete, onBack}){
-  const questions = [
-    {
-      id:"q1", text:"When a candidate says 'I'm not really looking right now', what's your instinct?",
-      options:[
-        {id:"a",text:"Apologise and offer to call back when they are looking"},
-        {id:"b",text:"Ask what they mean — maybe they're open to the right thing"},
-        {id:"c",text:"Pitch harder — they just need more information"},
-        {id:"d",text:"Acknowledge and bridge to why you called them specifically"},
-      ]
-    },
-    {
-      id:"q2", text:"You're on a cold call and the candidate goes quiet after your opening. What do you do?",
-      options:[
-        {id:"a",text:"Fill the silence immediately — keep talking"},
-        {id:"b",text:"Ask if it's a bad time"},
-        {id:"c",text:"Let the silence breathe for 2-3 seconds, then ask a question"},
-        {id:"d",text:"Repeat your hook in different words"},
-      ]
-    },
-    {
-      id:"q3", text:"A candidate says 'My current company takes care of me.' What does this signal?",
-      type:"multi",
-      options:[
-        {id:"a",text:"They're satisfied and not worth pursuing"},
-        {id:"b",text:"They want to feel valued — find out what 'taken care of' means to them"},
-        {id:"c",text:"They may be using loyalty language to avoid the conversation"},
-        {id:"d",text:"Ask what would make them feel even more taken care of — test the ceiling"},
-      ]
-    },
-  ];
+const ASSESSMENT_SCENARIOS = [
+  {
+    id:"marcus", level:"1 of 3", name:"Marcus Webb", ini:"MW", col:"#6B7280",
+    title:"Account Executive", company:"Nexus Software",
+    context:"You're filling a Senior BDM role at a Series B scale-up — £65k base, strong OTE, fully remote. Marcus has solid outbound B2B sales experience and his background is a strong match for the role.",
+    system:`You are Marcus Webb, Account Executive at Nexus Software. You've been here 2 years — it's fine. Decent salary, reasonable manager. Not unhappy but not inspired either. Not actively looking but not hostile.
+PERSONALITY: Friendly but passive. You answer what you're asked but don't volunteer much. Mildly surprised to get the call but open enough to hear it out.
+RESPONSE STYLE: Short responses (1-2 sentences). Polite but non-committal. If the recruiter asks genuine questions about your situation, you gradually open up. If they just pitch without asking anything, stay polite but brief.
+Opening line: "Oh hi — what's this about?"`
+  },
+  {
+    id:"priya", level:"2 of 3", name:"Priya Nair", ini:"PN", col:"#7C3AED",
+    title:"Senior Consultant", company:"Hays",
+    context:"You're placing a Senior Manager at a boutique accountancy practice — stronger culture, more autonomy, broadly similar compensation. Priya has a strong track record in practice recruitment and is well-regarded in her network.",
+    system:`You are Priya Nair, Senior Consultant at Hays. Five years here, good at your job, get headhunted regularly. You know how to handle recruiter calls.
+PERSONALITY: Professional, polished, guarded. "Happy where I am" comes naturally and early. But underneath: you were passed over for a promotion 8 months ago and it stung. You're ambitious. You'd move for the right thing — but you won't give that away cheaply.
+RESPONSE STYLE: Polite but firm deflections at first. If someone genuinely listens and asks what "happy" or "settled" actually means to you, soften slightly and reveal more. If they just pitch harder, stay closed.
+Opening line: "Hi — yes, who's this?"`
+  },
+  {
+    id:"james", level:"3 of 3", name:"James Sutherland", ini:"JS", col:"#1E3A8A",
+    title:"Director of Engineering", company:"FinTech Capital",
+    context:"You're placing a VP of Engineering — meaningful equity, strong leadership team, serious technical challenge. You don't have every detail of the brief yet. James has the exact background and you believe this is worth his time.",
+    system:`You are James Sutherland, Director of Engineering at FinTech Capital. Headhunted constantly. Zero patience for generic calls. Senior, busy, and you know within 10 seconds if someone is wasting your time.
+PERSONALITY: Brusque, dismissive, immediately testing. You challenge credentials and specifics early. Enthusiasm and positivity make you more dismissive — you respond only to calm authority and genuine knowledge about why you called this person specifically.
+RESPONSE STYLE: Open with time pressure. Short, clipped sentences. If they stumble, apologise, or get defensive, give one more short chance then end the call. If they stay completely calm and show real specificity about why they came to you, give slightly more.
+Opening line: "Sutherland. Two minutes — what is it?"`
+  }
+];
 
-  const [qIdx, setQIdx] = useState(0);
-  const [answers, setAnswers] = useState({});
-  const [sel, setSel] = useState([]);
+function AssessmentFlow({onComplete, onBack}){
+  const [phase, setPhase] = useState('intro');
+  const [scIdx, setScIdx] = useState(0);
+  const [msgs, setMsgs] = useState([]);
+  const [input, setInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [scores, setScores] = useState([]);
+  const [scoring, setScoring] = useState(false);
+  const [smartGoals, setSmartGoals] = useState(null);
+  const [goalsLoading, setGoalsLoading] = useState(false);
+  const chatRef = useRef(null);
+  const inputRef = useRef(null);
+  const sc = ASSESSMENT_SCENARIOS[scIdx];
 
-  const q = questions[qIdx];
-  const isMulti = q.type === "multi";
-  const isLast = qIdx === questions.length - 1;
+  useEffect(()=>{
+    if(chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+  },[msgs]);
 
-  const select = (id) => {
-    if(isMulti){
-      setSel(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev,id]);
-    } else {
-      setSel([id]);
-    }
+  const startChat = async () => {
+    setPhase('chat'); setChatLoading(true);
+    try {
+      const opening = await callAPI([{role:"user",content:"[Call begins]"}], sc.system, {max_tokens:100,temperature:1});
+      setMsgs([{role:"ai",content:opening}]);
+    } catch(e){ setMsgs([{role:"ai",content:"Hi — what's this about?"}]); }
+    setChatLoading(false);
+    setTimeout(()=>inputRef.current?.focus(),100);
   };
 
-  const next = () => {
-    const ans = {...answers, [q.id]: sel};
-    setAnswers(ans);
-    setSel([]);
-    if(isLast){
-      onComplete(ans);
-    } else {
-      setQIdx(i => i+1);
-    }
+  const send = async () => {
+    const text = input.trim();
+    if(!text||chatLoading) return;
+    const newMsgs = [...msgs,{role:"user",content:text}];
+    setMsgs(newMsgs); setInput(''); setChatLoading(true);
+    try {
+      const hist = newMsgs.map(m=>({role:m.role==="ai"?"assistant":"user",content:m.content}));
+      const reply = await callAPI(hist, sc.system, {max_tokens:150,temperature:1});
+      setMsgs(prev=>[...prev,{role:"ai",content:reply}]);
+    } catch(e){ setMsgs(prev=>[...prev,{role:"ai",content:"Sorry — say again?"}]); }
+    setChatLoading(false);
+    setTimeout(()=>inputRef.current?.focus(),100);
   };
 
-  return(
+  const endCall = async () => {
+    setPhase('scoring'); setScoring(true);
+    const transcript = msgs.map(m=>`${m.role==="user"?"Recruiter":"Candidate"}: ${m.content}`).join('\n');
+    const scoringPrompt = `You are assessing a recruiter's cold candidate call. Score the recruiter (not the candidate) on 5 dimensions, 1–5 each.
+
+Candidate: ${sc.name}, ${sc.title} at ${sc.company}. ${sc.context}
+
+Transcript:
+${transcript}
+
+Dimensions:
+- openingPitch (1-5): Specific, candidate-relevant opener. Earned the right to continue before pitching.
+- rapport (1-5): Matched candidate's energy. Adapted tone as the call developed.
+- openQuestions (1-5): Asked open-ended questions that drew out genuine responses, not yes/no.
+- discovery (1-5): Uncovered what's actually driving this person — frustrations, ambitions — beyond salary and tenure.
+- closing (1-5): Closed on a specific, low-friction next step (a brief, a call, a date) rather than leaving it open.
+
+IMPORTANT: Do not mention any framework or methodology names in your feedback. Plain language only.
+
+Return ONLY valid JSON:
+{"openingPitch":N,"rapport":N,"openQuestions":N,"discovery":N,"closing":N,"standout":"1 sentence on biggest strength","gap":"1 sentence on single biggest area to work on"}`;
+    try {
+      const res = await callAPI([{role:"user",content:scoringPrompt}],null,{max_tokens:350,temperature:0});
+      const parsed = parseJSON(res);
+      const newScores = [...scores,parsed];
+      setScores(newScores);
+      if(scIdx<2){ setPhase('between'); }
+      else { setPhase('goals'); await buildSmartGoals(newScores); }
+    } catch(e){
+      const fb = {openingPitch:2,rapport:2,openQuestions:2,discovery:2,closing:2,standout:"Completed the scenario.",gap:"Keep practising to get clearer feedback."};
+      const newScores = [...scores,fb]; setScores(newScores);
+      if(scIdx<2){ setPhase('between'); } else { setPhase('results'); }
+    }
+    setScoring(false);
+  };
+
+  const buildSmartGoals = async (allScores) => {
+    setGoalsLoading(true);
+    const totals = {openingPitch:0,rapport:0,openQuestions:0,discovery:0,closing:0};
+    allScores.forEach(s=>Object.keys(totals).forEach(k=>{ totals[k]+=(s[k]||0); }));
+    const avgs = Object.fromEntries(Object.entries(totals).map(([k,v])=>[k,Math.round(v/3*10)/10]));
+    const total = Object.values(avgs).reduce((a,b)=>a+b,0);
+    const skillLevel = total<=8?'beginner':total<=12?'intermediate':'advanced';
+    const dimLabels = {openingPitch:"opening and first impression",rapport:"building connection and adapting tone",openQuestions:"asking open questions",discovery:"uncovering real motivations and frustrations",closing:"closing on a clear next step"};
+    const sorted = Object.entries(avgs).sort((a,b)=>a[1]-b[1]);
+    const goalsPrompt = `You are Scott, an AI coach for recruiters. Write SMART development goals based on this 3-scenario assessment.
+
+Scores (average out of 5 across 3 scenarios):
+${Object.entries(avgs).map(([k,v])=>`- ${dimLabels[k]}: ${v}/5`).join('\n')}
+
+Write 3 goals in Scott's voice — warm, direct, actionable. Never use methodology or framework names. Plain language only.
+
+Return ONLY valid JSON:
+{"immediate":{"title":"5 words max","goal":"2-3 sentences: exact behaviour, how to measure it, why it matters. Scott speaking directly."},"important":{"title":"5 words max","goal":"2-3 sentences on the second gap."},"arc":{"pattern":"1 sentence: the recurring tendency across all 3 scenarios","goal":"1 sentence: what this looks like when mastered"}}`;
+    try {
+      const res = await callAPI([{role:"user",content:goalsPrompt}],null,{max_tokens:600,temperature:0.3});
+      const parsed = parseJSON(res);
+      setSmartGoals({...parsed,avgs,skillLevel});
+    } catch(e){
+      setSmartGoals({avgs,skillLevel,immediate:{title:"Focus on your opening",goal:"Start each call with something specific about the person you're calling. That one change will make the rest of the conversation easier."},important:{title:"Ask more, tell less",goal:"Your instinct is to pitch. The goal is to stay curious longer before you do."},arc:{pattern:"You complete the scenarios but play it safe under pressure.",goal:"The version of you that stays calm when pushed is already in there — the work is making that the default."}});
+    }
+    setGoalsLoading(false);
+    setPhase('results');
+  };
+
+  const finish = () => {
+    const skillLevel = smartGoals?.skillLevel || 'beginner';
+    onComplete({skillLevel, assessmentScores:scores, smartGoals});
+  };
+
+  const dimLabels = {openingPitch:"Opening",rapport:"Rapport",openQuestions:"Open questions",discovery:"Discovery",closing:"Closing"};
+
+  if(phase==='intro') return(
     <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:24,fontFamily:"'Inter',sans-serif"}}>
       <div style={{maxWidth:520,width:"100%"}}>
-        <button onClick={onBack} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,marginBottom:20}}>← Back</button>
+        <button onClick={onBack} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:13,marginBottom:24}}>← Back</button>
+        <div style={{background:C.white,borderRadius:20,padding:"32px 28px",border:`1px solid ${C.border}`}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:1.5,marginBottom:12}}>Baseline Assessment</div>
+          <h2 style={{fontSize:20,fontWeight:800,color:C.navy,marginBottom:8,lineHeight:1.3}}>3 live scenarios to find where you are</h2>
+          <p style={{fontSize:14,color:C.muted,lineHeight:1.6,marginBottom:24}}>You'll have 3 short candidate calls — each one a bit tougher than the last. Scott will assess what you do well and where to focus first. Takes about 10 minutes.</p>
+          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:28}}>
+            {ASSESSMENT_SCENARIOS.map((s,i)=>(
+              <div key={s.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:C.bg,borderRadius:5,border:`1px solid ${C.border}`}}>
+                <div style={{width:34,height:34,borderRadius:"50%",background:s.col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{s.ini}</div>
+                <div><div style={{fontSize:13,fontWeight:700,color:C.navy}}>{s.name}</div><div style={{fontSize:12,color:C.muted}}>{s.title} · {s.company}</div></div>
+                <div style={{marginLeft:"auto",fontSize:11,color:C.muted,background:C.secondary,borderRadius:999,padding:"3px 10px"}}>Scenario {i+1}</div>
+              </div>
+            ))}
+          </div>
+          <button onClick={()=>setPhase('brief')} style={{width:"100%",background:C.purple,color:"#fff",border:"none",borderRadius:999,padding:"13px",fontWeight:700,fontSize:14,cursor:"pointer"}}>Start assessment →</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if(phase==='brief') return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:24,fontFamily:"'Inter',sans-serif"}}>
+      <div style={{maxWidth:520,width:"100%"}}>
         <div style={{display:"flex",gap:4,marginBottom:24}}>
-          {questions.map((_,i)=>(
-            <div key={i} style={{flex:1,height:4,borderRadius:999,background:i<=qIdx?C.purple:C.border,transition:"background 0.3s"}}/>
+          {ASSESSMENT_SCENARIOS.map((_,i)=>(
+            <div key={i} style={{flex:1,height:4,borderRadius:999,background:i<scIdx?C.purple:i===scIdx?"#A78BFA":C.border}}/>
           ))}
         </div>
-        <div style={{background:C.white,borderRadius:20,padding:"28px 28px 24px",border:`1px solid ${C.border}`}}>
-          <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>
-            Question {qIdx+1} of {questions.length}
-            {isMulti && <span style={{marginLeft:8,background:C.lavPale,borderRadius:999,padding:"2px 8px",fontSize:10}}>Select all that apply</span>}
+        <div style={{background:C.white,borderRadius:20,padding:"28px",border:`1px solid ${C.border}`}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:1.5,marginBottom:12}}>Scenario {sc.level}</div>
+          <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:20,paddingBottom:20,borderBottom:`1px solid ${C.border}`}}>
+            <div style={{width:48,height:48,borderRadius:"50%",background:sc.col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#fff",flexShrink:0}}>{sc.ini}</div>
+            <div><div style={{fontSize:16,fontWeight:800,color:C.navy}}>{sc.name}</div><div style={{fontSize:13,color:C.muted}}>{sc.title} · {sc.company}</div></div>
           </div>
-          <p style={{fontSize:16,fontWeight:700,color:C.navy,lineHeight:1.55,marginBottom:20}}>{q.text}</p>
-          <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:24}}>
-            {q.options.map(opt=>{
-              const active = sel.includes(opt.id);
-              return(
-                <button key={opt.id} onClick={()=>select(opt.id)}
-                  style={{background:active?C.lavPale:C.bg,border:`2px solid ${active?C.purple:C.border}`,borderRadius:5,padding:"12px 16px",textAlign:"left",cursor:"pointer",fontSize:13,color:active?C.navy:C.text,lineHeight:1.5,transition:"all 0.15s",fontFamily:"'Inter',sans-serif",fontWeight:active?600:400}}>
-                  {opt.text}
-                </button>
-              );
-            })}
+          <div style={{fontSize:12,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Your brief</div>
+          <p style={{fontSize:14,color:C.text,lineHeight:1.65,marginBottom:24}}>{sc.context}</p>
+          <button onClick={startChat} style={{width:"100%",background:C.purple,color:"#fff",border:"none",borderRadius:999,padding:"13px",fontWeight:700,fontSize:14,cursor:"pointer"}}>Make the call →</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  if(phase==='chat') return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",fontFamily:"'Inter',sans-serif"}}>
+      <div style={{background:C.white,borderBottom:`1px solid ${C.border}`,padding:"12px 20px",display:"flex",alignItems:"center",gap:12}}>
+        <div style={{width:36,height:36,borderRadius:"50%",background:sc.col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff"}}>{sc.ini}</div>
+        <div style={{flex:1}}><div style={{fontSize:14,fontWeight:700,color:C.navy}}>{sc.name}</div><div style={{fontSize:12,color:C.muted}}>{sc.title}</div></div>
+        <div style={{fontSize:11,color:C.muted,background:C.secondary,borderRadius:999,padding:"3px 10px",marginRight:8}}>Scenario {sc.level}</div>
+        <button onClick={endCall} disabled={msgs.length<2||chatLoading}
+          style={{background:msgs.length>=2&&!chatLoading?"#FEE2E2":"#f3f4f6",color:msgs.length>=2&&!chatLoading?"#991B1B":C.muted,border:"none",borderRadius:999,padding:"8px 16px",fontWeight:700,fontSize:12,cursor:msgs.length>=2&&!chatLoading?"pointer":"not-allowed"}}>
+          End call
+        </button>
+      </div>
+      <div ref={chatRef} style={{flex:1,overflowY:"auto",padding:"20px",display:"flex",flexDirection:"column",gap:12,maxWidth:680,width:"100%",margin:"0 auto"}}>
+        {chatLoading&&msgs.length===0 && <div style={{fontSize:13,color:C.muted,textAlign:"center",marginTop:40}}>Connecting…</div>}
+        {msgs.map((m,i)=>(
+          <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",alignItems:"flex-start",gap:8}}>
+            {m.role==="ai" && <div style={{width:28,height:28,borderRadius:"50%",background:sc.col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff",flexShrink:0,marginTop:2}}>{sc.ini}</div>}
+            <div style={{maxWidth:"75%",background:m.role==="user"?C.purple:C.white,color:m.role==="user"?"#fff":C.text,padding:"10px 14px",borderRadius:m.role==="user"?"18px 18px 4px 18px":"18px 18px 18px 4px",fontSize:13,lineHeight:1.5,border:m.role==="ai"?`1px solid ${C.border}`:"none"}}>{m.content}</div>
           </div>
-          <button onClick={next} disabled={sel.length===0}
-            style={{width:"100%",background:sel.length?C.purple:C.border,color:sel.length?"#fff":C.muted,border:"none",borderRadius:999,padding:"13px",fontWeight:700,fontSize:14,cursor:sel.length?"pointer":"not-allowed",transition:"all 0.2s"}}>
-            {isLast ? "See my results →" : "Next →"}
+        ))}
+        {chatLoading&&msgs.length>0 && <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:28,height:28,borderRadius:"50%",background:sc.col,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff"}}>{sc.ini}</div><div style={{fontSize:13,color:C.muted}}>…</div></div>}
+      </div>
+      <div style={{background:C.white,borderTop:`1px solid ${C.border}`,padding:"12px 20px"}}>
+        <div style={{maxWidth:680,margin:"0 auto",display:"flex",gap:10}}>
+          <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}
+            placeholder="What do you say?" disabled={chatLoading||msgs.length===0}
+            style={{flex:1,border:`1px solid ${C.border}`,borderRadius:999,padding:"10px 16px",fontSize:13,outline:"none",background:C.bg,color:C.text,fontFamily:"'Inter',sans-serif"}}/>
+          <button onClick={send} disabled={!input.trim()||chatLoading}
+            style={{background:input.trim()&&!chatLoading?C.purple:C.border,color:input.trim()&&!chatLoading?"#fff":C.muted,border:"none",borderRadius:999,padding:"10px 20px",fontWeight:700,fontSize:13,cursor:input.trim()&&!chatLoading?"pointer":"not-allowed"}}>
+            Send
           </button>
         </div>
       </div>
     </div>
   );
+
+  if(phase==='scoring') return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:24,fontFamily:"'Inter',sans-serif"}}>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontSize:13,color:C.muted,marginBottom:12}}>Scott is reviewing that call…</div>
+        <div style={{width:40,height:3,background:C.purple,borderRadius:999,margin:"0 auto"}}/>
+      </div>
+    </div>
+  );
+
+  if(phase==='between'){
+    const last = scores[scores.length-1];
+    return(
+      <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:24,fontFamily:"'Inter',sans-serif"}}>
+        <div style={{maxWidth:480,width:"100%"}}>
+          <div style={{background:C.white,borderRadius:20,padding:"28px",border:`1px solid ${C.border}`,marginBottom:12}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:1.5,marginBottom:16}}>Scenario {scIdx+1} complete</div>
+            {last && (<>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>
+                {Object.entries(dimLabels).map(([k,label])=>(
+                  <div key={k} style={{background:C.bg,borderRadius:5,padding:"6px 12px",border:`1px solid ${C.border}`,fontSize:12}}>
+                    <span style={{color:C.muted}}>{label}: </span>
+                    <span style={{fontWeight:700,color:last[k]>=4?C.green:last[k]>=3?C.navy:C.red}}>{last[k]}/5</span>
+                  </div>
+                ))}
+              </div>
+              {last.standout && <p style={{fontSize:13,color:C.green,marginBottom:6,lineHeight:1.5}}>✓ {last.standout}</p>}
+              {last.gap && <p style={{fontSize:13,color:C.muted,lineHeight:1.5}}>→ {last.gap}</p>}
+            </>)}
+          </div>
+          <button onClick={()=>{setScIdx(i=>i+1);setMsgs([]);setInput('');setPhase('brief');}}
+            style={{width:"100%",background:C.purple,color:"#fff",border:"none",borderRadius:999,padding:"13px",fontWeight:700,fontSize:14,cursor:"pointer"}}>
+            Next scenario →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if(phase==='goals'||goalsLoading) return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:24,fontFamily:"'Inter',sans-serif"}}>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontSize:13,color:C.muted,marginBottom:12}}>Scott is building your learning path…</div>
+        <div style={{width:40,height:3,background:C.purple,borderRadius:999,margin:"0 auto"}}/>
+      </div>
+    </div>
+  );
+
+  if(phase==='results'&&smartGoals){
+    const {avgs,skillLevel,immediate,important,arc} = smartGoals;
+    const lc = skillLevel==='advanced'?{bg:"#DBEAFE",text:"#1E40AF"}:skillLevel==='intermediate'?{bg:"#FEF9C3",text:"#854D0E"}:{bg:"#DCFCE7",text:"#166534"};
+    return(
+      <div style={{minHeight:"100vh",background:C.bg,padding:"32px 24px",fontFamily:"'Inter',sans-serif"}}>
+        <div style={{maxWidth:560,margin:"0 auto"}}>
+          <div style={{background:C.white,borderRadius:20,padding:"28px",border:`1px solid ${C.border}`,marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:1.5,marginBottom:4}}>Assessment complete</div>
+                <h2 style={{fontSize:20,fontWeight:800,color:C.navy,margin:0}}>Your baseline</h2>
+              </div>
+              <div style={{background:lc.bg,color:lc.text,borderRadius:999,padding:"6px 16px",fontWeight:700,fontSize:13,textTransform:"capitalize"}}>{skillLevel}</div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {Object.entries(dimLabels).map(([k,label])=>(
+                <div key={k} style={{background:C.bg,borderRadius:5,padding:"10px 14px",border:`1px solid ${C.border}`}}>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:2}}>{label}</div>
+                  <div style={{fontSize:18,fontWeight:800,color:avgs[k]>=4?C.green:avgs[k]>=3?C.navy:C.red}}>{avgs[k]}<span style={{fontSize:12,fontWeight:400,color:C.muted}}>/5</span></div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{background:C.white,borderRadius:20,padding:"28px",border:`1px solid ${C.border}`,marginBottom:16}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:1.5,marginBottom:16}}>Your goals from Scott</div>
+            <div style={{marginBottom:16,paddingBottom:16,borderBottom:`1px solid ${C.border}`}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.amber,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>Focus now</div>
+              <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:6}}>{immediate.title}</div>
+              <p style={{fontSize:13,color:C.text,lineHeight:1.65,margin:0}}>{immediate.goal}</p>
+            </div>
+            <div style={{marginBottom:16,paddingBottom:16,borderBottom:`1px solid ${C.border}`}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>Next 2 weeks</div>
+              <div style={{fontSize:13,fontWeight:700,color:C.navy,marginBottom:6}}>{important.title}</div>
+              <p style={{fontSize:13,color:C.text,lineHeight:1.65,margin:0}}>{important.goal}</p>
+            </div>
+            <div>
+              <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>The bigger picture</div>
+              <p style={{fontSize:13,color:C.muted,lineHeight:1.65,margin:0}}>{arc.pattern} {arc.goal}</p>
+            </div>
+          </div>
+          <button onClick={finish} style={{width:"100%",background:C.purple,color:"#fff",border:"none",borderRadius:999,padding:"13px",fontWeight:700,fontSize:14,cursor:"pointer"}}>
+            Build my learning path →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -5862,6 +6113,7 @@ function ScottOnboarding({onComplete, existingProfile=null}){
   const [step, setStep] = useState(existingProfile ? 1 : 0);
   const [showAssessment, setShowAssessment] = useState(false);
   const [assessmentDone, setAssessmentDone] = useState(false);
+  const [assessmentResult, setAssessmentResult] = useState(null);
   const [profile, setProfile] = useState(existingProfile || {
     name:"", focus:"", billings:"", challenge:"", ownChallenge:"", biggestWin:"",
     goalDate:"", seedVariant: Math.floor(Math.random()*6),
@@ -5885,9 +6137,8 @@ function ScottOnboarding({onComplete, existingProfile=null}){
   ];
 
   if(showAssessment) return(
-    <RoleplayAssessment
-      challenge={profile.challenge}
-      onComplete={(ans)=>{ setAssessmentDone(true); setShowAssessment(false); }}
+    <AssessmentFlow
+      onComplete={(result)=>{ setAssessmentResult(result); setAssessmentDone(true); setShowAssessment(false); }}
       onBack={()=>setShowAssessment(false)}
     />
   );
@@ -5933,7 +6184,7 @@ function ScottOnboarding({onComplete, existingProfile=null}){
               <input
                 value={profile[currentStep.field]||""}
                 onChange={e=>update(currentStep.field,e.target.value)}
-                onKeyDown={e=>{ if(e.key==="Enter" && canContinue){ isLast ? (!assessmentDone ? setShowAssessment(true) : onComplete(profile)) : setStep(s=>s+1); }}}
+                onKeyDown={e=>{ if(e.key==="Enter" && canContinue){ isLast ? (!assessmentDone ? setShowAssessment(true) : onComplete({...profile, skillLevel: assessmentResult?.skillLevel||'beginner', assessmentScores: assessmentResult?.assessmentScores||[], smartGoals: assessmentResult?.smartGoals||null})) : setStep(s=>s+1); }}}
                 placeholder={currentStep.placeholder}
                 autoFocus
                 style={{width:"100%",background:C.bg,border:`2px solid ${C.border}`,borderRadius:5,padding:"12px 16px",fontSize:14,color:C.text,outline:"none",fontFamily:"'Inter',sans-serif",boxSizing:"border-box",transition:"border-color 0.2s"}}
@@ -5952,7 +6203,8 @@ function ScottOnboarding({onComplete, existingProfile=null}){
           onClick={()=>{
             if(!canContinue) return;
             if(isLast){
-              onComplete(profile);
+              if(!assessmentDone){ setShowAssessment(true); return; }
+              onComplete({...profile, skillLevel: assessmentResult?.skillLevel||'beginner', assessmentScores: assessmentResult?.assessmentScores||[], smartGoals: assessmentResult?.smartGoals||null});
             } else {
               setStep(s=>s+1);
             }
@@ -7518,7 +7770,9 @@ export default function App(){
             setUserRole(p.role || 'learner');
             go(p.role==='manager' ? 'team' : 'learning');
           } else {
-            go('setup');
+            const local = loadProfile();
+            if(local?.name){ setProfile(local); sbSaveProfile(u.id, local).catch(()=>{}); go('learning'); }
+            else { go('setup'); }
           }
         } else {
           go('landing');
@@ -7535,7 +7789,11 @@ export default function App(){
     setUserRole(role || 'learner');
     const p = await sbGetProfile(u.id);
     if(p){ setProfile(p); go(role==='manager' ? 'team' : 'learning'); }
-    else  { go('setup'); }
+    else {
+      const local = loadProfile();
+      if(local?.name){ setProfile(local); sbSaveProfile(u.id, local).catch(()=>{}); go('learning'); }
+      else { go('setup'); }
+    }
   };
 
   const handleProfileSave = (p) => {

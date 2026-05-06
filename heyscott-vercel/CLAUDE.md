@@ -206,6 +206,8 @@ These must be present in curriculum content, coaching responses, and marketing c
 
 ## 8. Coaching Frameworks — Always Applied, Never Named to the User
 
+**ABSOLUTE RULE: Methodology and framework names are NEVER shown to users — not in the UI, not in coaching feedback, not in scoring labels, not in debrief text, not in SMART goals. They exist only in AI system prompts and internal code. This includes: SPIN, AEO, Hook-Bridge-Ask, Challenger Sale, Mirror→Lead, Commitment Ladder, Three-Layer Discovery, Permission-Based Opening, and any other named framework. Use plain English equivalents in all user-facing output (e.g. "open questions" not "SPIN discovery", "earn permission" not "permission-based opening", "close on a next step" not "micro-close").**
+
 Full methodology specification: **`METHODOLOGY.md`** — this is the governing document for all assessment, scoring, and training logic. Read it before touching any roleplay, assessment, scoring, or SMART goal code.
 
 **Active frameworks (applied in every roleplay and coaching response):**
